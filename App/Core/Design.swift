@@ -4,6 +4,8 @@ import SafariServices
 
 @MainActor
 enum Theme {
+    static let iconSize: CGFloat = 40
+    static let iconTouchSize: CGFloat = 48
     static let ink = UIColor(red: 0.052, green: 0.043, blue: 0.102, alpha: 1)
     static let panel = UIColor(red: 0.115, green: 0.092, blue: 0.192, alpha: 1)
     static let line = UIColor(red: 0.27, green: 0.23, blue: 0.37, alpha: 1)
@@ -50,13 +52,15 @@ enum Theme {
         config.baseBackgroundColor = accent ? mint : panel
         config.cornerStyle = .large
         config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
-        config.imagePadding = 5
+        config.imagePadding = 8
+        if icon != nil { config.imagePlacement = .top }
+        config.titleLineBreakMode = .byWordWrapping
         let button = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         if let icon {
             Task { [weak button] in
                 guard let image = await Artwork.image(icon) else { return }
-                button?.configuration?.image = image.scaled(to: 25)
+                button?.configuration?.image = image
             }
         }
         return button
@@ -68,7 +72,7 @@ enum Theme {
             let image = await Artwork.image(name)
             guard let button else { return }
             if let image {
-                button.setImage(image.scaled(to: 36), for: .normal)
+                button.setImage(image, for: .normal)
             } else {
                 button.setTitle(label, for: .normal)
                 button.titleLabel?.font = font(12, display: true)
@@ -92,10 +96,7 @@ enum Theme {
     }
 
     static func moreIcon(label: String, action: @escaping () -> Void) -> UIButton {
-        let button = iconTarget(label, action: action)
-        button.setTitle("…", for: .normal)
-        button.titleLabel?.font = font(36, display: true)
-        return button
+        icon("settings", label: label, action: action)
     }
 
     private static func iconTarget(_ label: String, action: @escaping () -> Void) -> UIButton {
@@ -103,8 +104,8 @@ enum Theme {
         button.setTitleColor(paper, for: .normal)
         button.setTitleColor(secondary, for: .highlighted)
         button.accessibilityLabel = label
-        button.widthAnchor.constraint(equalToConstant: 48).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        button.widthAnchor.constraint(equalToConstant: iconTouchSize).isActive = true
+        button.heightAnchor.constraint(equalToConstant: iconTouchSize).isActive = true
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         return button
     }
@@ -192,32 +193,71 @@ enum Artwork {
     static let expoPortrait = storage?.appendingPathComponent("944f77db-dbc1-4293-976a-e6bc0dc71f39/expo-duo.jpg")
     static let fanPortrait = storage?.appendingPathComponent("sese-media-v1/fan-duo.jpg")
 
-    private static let reactionIcons: [String: UIImage] = {
-        guard let data = try? Data(contentsOf: Resources.url("ReactionArtwork.plist")),
+    private static let iconImages: [String: UIImage] = {
+        guard let data = try? Data(contentsOf: Resources.url("IconArtwork.plist")),
               let images = try? PropertyListDecoder().decode([String: Data].self, from: data) else { return [:] }
         // Match the visible shapes, not the differently padded ImageGen canvases.
-        let layouts: [String: (bounds: CGRect, size: CGSize)] = [
-            "like": (CGRect(x: 32, y: 14, width: 79, height: 69), CGSize(width: 48, height: 44)),
-            "like-outline": (CGRect(x: 11, y: 20, width: 121, height: 111), CGSize(width: 48, height: 44)),
-            "save": (CGRect(x: 36, y: 14, width: 72, height: 116), CGSize(width: 32, height: 48)),
-            "save-outline": (CGRect(x: 31, y: 8, width: 82, height: 126), CGSize(width: 32, height: 48))
+        let bounds: [String: CGRect] = [
+            "like": CGRect(x: 32, y: 14, width: 79, height: 69),
+            "like-outline": CGRect(x: 11, y: 20, width: 121, height: 111),
+            "save": CGRect(x: 36, y: 14, width: 72, height: 116),
+            "save-outline": CGRect(x: 31, y: 8, width: 82, height: 126),
+            "comments": CGRect(x: 23, y: 22, width: 108, height: 114),
+            "share": CGRect(x: 37, y: 11, width: 81, height: 82),
+            "shorts": CGRect(x: 22, y: 15, width: 110, height: 125),
+            "districts": CGRect(x: 23, y: 31, width: 109, height: 94),
+            "cosplay": CGRect(x: 24, y: 11, width: 108, height: 132),
+            "chats": CGRect(x: 36, y: 16, width: 82, height: 74),
+            "profile": CGRect(x: 21, y: 13, width: 113, height: 129),
+            "settings": CGRect(x: 17, y: 14, width: 122, height: 127),
+            "search": CGRect(x: 38, y: 8, width: 80, height: 89),
+            "wallet": CGRect(x: 46, y: 14, width: 64, height: 73),
+            "back": CGRect(x: 42, y: 21, width: 74, height: 112),
+            "filter": CGRect(x: 36, y: 11, width: 81, height: 82),
+            "consent-unchecked": CGRect(x: 20, y: 23, width: 87, height: 84),
+            "consent-checked": CGRect(x: 21, y: 24, width: 86, height: 83),
+            "diamond": CGRect(x: 46, y: 65, width: 161, height: 132)
         ]
+        let presentationSize = CGSize(width: Theme.iconSize, height: Theme.iconSize)
         return images.reduce(into: [:]) { result, entry in
-            guard let source = UIImage(data: entry.value), let layout = layouts[entry.key],
-                  let shape = source.cgImage?.cropping(to: layout.bounds) else { return }
+            guard let source = UIImage(data: entry.value), let contentBounds = bounds[entry.key],
+                  let shape = source.cgImage?.cropping(to: contentBounds) else { return }
             let format = UIGraphicsImageRendererFormat()
             format.scale = 3
             format.opaque = false
-            result[entry.key] = UIGraphicsImageRenderer(size: layout.size, format: format).image { _ in
-                UIImage(cgImage: shape).draw(in: CGRect(origin: .zero, size: layout.size))
+            let artwork = entry.key == "like" ? removingFaintBackdrop(from: shape) : shape
+            result[entry.key] = UIGraphicsImageRenderer(size: presentationSize, format: format).image { _ in
+                UIImage(cgImage: artwork).draw(in: CGRect(origin: .zero, size: presentationSize))
             }.withRenderingMode(.alwaysOriginal)
         }
     }()
 
-    static func reactionImage(_ name: String) -> UIImage? { reactionIcons[name] }
+    private static func removingFaintBackdrop(from image: CGImage) -> CGImage {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        return pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
+            else { return image }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            let bytes = buffer.bindMemory(to: UInt8.self)
+            for offset in stride(from: 0, to: bytes.count, by: 4) where bytes[offset + 3] < 128 {
+                bytes[offset] = 0
+                bytes[offset + 1] = 0
+                bytes[offset + 2] = 0
+                bytes[offset + 3] = 0
+            }
+            return context.makeImage() ?? image
+        }
+    }
+
+    static func iconImage(_ name: String) -> UIImage? { iconImages[name] }
 
     static func image(_ name: String) async -> UIImage? {
-        if let icon = reactionImage(name) { return icon }
+        if let icon = iconImage(name) { return icon }
         let object: String
         switch name {
         case "diamond": object = "exploration/34acd192-a548-49e8-a9ff-8fa39b51e916/diamond.png"
@@ -267,13 +307,85 @@ final class EditorialImage: UIImageView {
     required init?(coder: NSCoder) { return nil }
 }
 
+final class ContentScrollView: UIScrollView {
+    override func touchesShouldCancel(in view: UIView) -> Bool {
+        // A drag over a card, avatar, or action must still scroll the page.
+        if view is UIButton { return true }
+        return super.touchesShouldCancel(in: view)
+    }
+}
+
+@MainActor
+final class PageRefresh: NSObject {
+    let control = UIRefreshControl()
+    let feedback = Theme.label("", size: 14, color: Theme.secondary)
+    private var action: (() -> Void)?
+    private weak var attachedScroll: UIScrollView?
+    private var deadline: Task<Void, Never>?
+    private(set) var isRefreshing = false
+    private var sequence = 0
+
+    override init() {
+        super.init()
+        feedback.isHidden = true
+        feedback.accessibilityIdentifier = "refresh.status"
+        control.tintColor = Theme.mint
+        control.accessibilityLabel = "Refresh content"
+        control.addAction(UIAction { [weak self] _ in self?.begin() }, for: .valueChanged)
+    }
+
+    func install(on scroll: UIScrollView, action: @escaping () -> Void) {
+        self.action = action
+        attachedScroll = scroll
+        scroll.alwaysBounceVertical = true
+        scroll.refreshControl = control
+    }
+
+    func begin() {
+        guard !isRefreshing, let action else { return }
+        sequence += 1
+        isRefreshing = true
+        if attachedScroll?.isHidden == false && !control.isRefreshing { control.beginRefreshing() }
+        feedback.text = "Updating…"
+        feedback.accessibilityValue = "loading:\(sequence)"
+        feedback.isHidden = false
+        deadline?.cancel()
+        deadline = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 35_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.finish(error: "The update took too long. Pull down to try again.")
+        }
+        action()
+    }
+
+    func finish(error: String? = nil) {
+        guard isRefreshing else { return }
+        deadline?.cancel()
+        deadline = nil
+        isRefreshing = false
+        control.endRefreshing()
+        feedback.text = error ?? "Updated just now"
+        feedback.accessibilityValue = "\(error == nil ? "success" : "failure"):\(sequence)"
+        UIAccessibility.post(notification: .announcement, argument: feedback.text)
+    }
+
+    func cancel() {
+        deadline?.cancel()
+        deadline = nil
+        isRefreshing = false
+        control.endRefreshing()
+        feedback.isHidden = true
+    }
+}
+
 @MainActor
 class CityPage: UIViewController {
     let api: CommunityAPI
     let heading: String
     let body = Theme.stack(spacing: 14)
     let actions = Theme.stack(spacing: 8, axis: .horizontal)
-    let scroll = UIScrollView()
+    let scroll = ContentScrollView()
+    let pageRefresh = PageRefresh()
     private let status = Theme.label("", size: 15, color: Theme.secondary)
 
     init(_ heading: String, api: CommunityAPI) {
@@ -305,7 +417,8 @@ class CityPage: UIViewController {
         header.addArrangedSubview(title)
         header.addArrangedSubview(actions)
         status.isHidden = true
-        let column = Theme.stack([header, status, scroll], spacing: 10)
+        let column = Theme.stack([header, status, pageRefresh.feedback, scroll], spacing: 10)
+        scroll.accessibilityIdentifier = "page.scroll"
         scroll.keyboardDismissMode = .interactive
         for subview in [art, column, body] { subview.translatesAutoresizingMaskIntoConstraints = false }
         view.addSubview(art)
@@ -325,6 +438,15 @@ class CityPage: UIViewController {
             body.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
             body.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)
         ])
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        pageRefresh.cancel()
+    }
+
+    func enableRefresh(_ action: @escaping () -> Void) {
+        pageRefresh.install(on: scroll, action: action)
     }
 
     func push(_ page: UIViewController) { navigationController?.pushViewController(page, animated: true) }

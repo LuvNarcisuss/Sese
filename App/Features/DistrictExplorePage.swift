@@ -124,6 +124,10 @@ final class DistrictExplorePage: CityPage {
         body.addArrangedSubview(map)
         body.addArrangedSubview(Theme.label("Tap a number on the map or choose a place below.", size: 15, color: Theme.secondary))
         body.addArrangedSubview(list)
+        enableRefresh { [weak self] in
+            self?.renderVisits()
+            self?.pageRefresh.finish()
+        }
         if let guide {
             body.addArrangedSubview(Theme.button("Read the district guide") { [weak self] in
                 guard let self else { return }
@@ -134,6 +138,10 @@ final class DistrictExplorePage: CityPage {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        renderVisits()
+    }
+
+    private func renderVisits() {
         let visited = visits
         let count = places.filter { visited.contains($0.id) }.count
         progress.text = count == places.count ? "District explored · \(count) of \(places.count) visited"
@@ -216,6 +224,10 @@ private final class DistrictPlacePage: CityPage {
             self?.navigationController?.popViewController(animated: true)
         })
         updateVisitAction()
+        enableRefresh { [weak self] in
+            self?.updateVisitAction()
+            self?.pageRefresh.finish()
+        }
     }
 
     private func updateVisitAction() {

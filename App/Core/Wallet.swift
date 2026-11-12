@@ -122,6 +122,11 @@ final class Wallet {
         }
     }
 
+    func recoverAndWait(for member: UUID) async {
+        recover(for: member)
+        await recovery?.value
+    }
+
     func offers() throws -> [WalletOffer] {
         try configuredOffers().values.sorted { $0.diamonds < $1.diamonds }
     }

@@ -66,6 +66,11 @@ final class ChatPhotoPage: CityPage {
 
     required init?(coder: NSCoder) { return nil }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        enableRefresh { [weak self] in self?.loadPhoto() }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         loadPhoto()
@@ -79,7 +84,6 @@ final class ChatPhotoPage: CityPage {
 
     private func loadPhoto() {
         loadTask?.cancel()
-        body.clear()
         showStatus("Loading photo…")
         loadTask = Task { [weak self] in
             guard let self else { return }
@@ -93,12 +97,17 @@ final class ChatPhotoPage: CityPage {
                 view.isAccessibilityElement = true
                 view.accessibilityLabel = "Photo attachment"
                 view.heightAnchor.constraint(equalToConstant: 440).isActive = true
+                self.body.clear()
                 self.body.addArrangedSubview(view)
                 self.showStatus(nil)
+                self.pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
                 self.showStatus("This photo could not be loaded.")
-                self.body.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.loadPhoto() })
+                self.pageRefresh.finish(error: "This photo could not be updated. Pull down to try again.")
+                if self.body.arrangedSubviews.isEmpty {
+                    self.body.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.loadPhoto() })
+                }
             }
         }
     }

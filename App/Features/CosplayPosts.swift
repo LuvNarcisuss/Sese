@@ -256,7 +256,7 @@ enum CosplayPostCard {
             card.addArrangedSubview(preview)
         }
         if let openAuthor, let author = post.author {
-            let avatar = MemberAvatar.button(author.avatar, size: 44, label: "Open \(author.displayName)’s profile",
+            let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
                                              memberID: author.id) { openAuthor(author.id) }
             let identity = Theme.stack([avatar, Theme.label(author.displayName, size: 15)], spacing: 8, axis: .horizontal)
             identity.alignment = .center
@@ -303,7 +303,8 @@ private final class CosplayPhotoThumbnail: UIButton {
 }
 
 final class CosplayPostPage: CityPage {
-    private let post: CosplayPost
+    private var post: CosplayPost
+    private var refreshTask: Task<Void, Never>?
     private let media = Theme.stack()
     private var temporaryVideo: URL?
     private var loading = false
@@ -320,10 +321,19 @@ final class CosplayPostPage: CityPage {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        enableRefresh { [weak self] in self?.reloadPost() }
+        renderPost()
+    }
+
+    private func renderPost() {
+        body.clear()
+        actions.clear()
+        media.clear()
+        engagement = nil
         body.addArrangedSubview(Theme.label(post.title, size: 28, display: true))
         if !post.caption.isEmpty { body.addArrangedSubview(Theme.label(post.caption, color: Theme.secondary)) }
         if let author = post.author {
-            let avatar = MemberAvatar.button(author.avatar, size: 44, label: "Open \(author.displayName)’s profile",
+            let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
                                              memberID: author.id) { [weak self] in
                 guard let self else { return }
                 self.push(ProfilePage(memberID: author.id, api: self.api))
@@ -360,14 +370,45 @@ final class CosplayPostPage: CityPage {
         }
     }
 
+    private func reloadPost() {
+        guard !loading else {
+            pageRefresh.finish(error: "Wait for the media to load, then pull down again.")
+            return
+        }
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let rows = try await api.cosplayPosts(owner: post.ownerId, ids: [post.id])
+                try Task.checkCancellation()
+                guard let updated = rows.first else { throw CommunityError.unavailable }
+                post = updated
+                renderPost()
+                if post.mediaKind == .photo && post.status != "removed" {
+                    loadMedia { [weak self] error in self?.pageRefresh.finish(error: error) }
+                } else if let engagement {
+                    engagement.load { [weak self] error in self?.pageRefresh.finish(error: error) }
+                } else {
+                    pageRefresh.finish()
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                pageRefresh.finish(error: "This post could not be updated. Pull down to try again.")
+            }
+        }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         engagement?.load()
         if post.mediaKind == .photo, post.status != "removed", media.arrangedSubviews.isEmpty { loadMedia() }
     }
 
-    private func loadMedia() {
-        guard !loading else { return }
+    private func loadMedia(completion: ((String?) -> Void)? = nil) {
+        guard !loading else {
+            completion?("Wait for the media to load, then pull down again.")
+            return
+        }
         loading = true
         showStatus("Loading \(post.mediaKind.title.lowercased())…")
         Task {
@@ -390,7 +431,9 @@ final class CosplayPostPage: CityPage {
                     try CosplayMedia.play(data, from: self, temporaryFile: &temporaryVideo)
                 }
                 showStatus(nil)
+                completion?(nil)
             } catch {
+                completion?("This media could not be updated. Pull down to try again.")
                 showStatus("This media could not be loaded.")
                 if post.mediaKind == .photo, media.arrangedSubviews.isEmpty {
                     media.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.loadMedia() })

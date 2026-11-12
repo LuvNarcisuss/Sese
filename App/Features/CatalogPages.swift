@@ -42,7 +42,6 @@ final class CatalogPage: CityPage {
     private var ownPosts: [CosplayPost] = []
     private var cosplayLoaded = false
     private var cosplayFailure = false
-    private var cosplayTask: Task<Void, Never>?
     private let searchField = Theme.field("Search")
     private var items: [CatalogItem] = []
     private var saved: Set<String> = []
@@ -77,21 +76,13 @@ final class CatalogPage: CityPage {
         body.addArrangedSubview(grid)
         if section == .cosplay {
             actions.addArrangedSubview(Theme.icon("shorts", label: "Post cosplay") { [weak self] in self?.composeCosplay() })
-            let refresh = UIRefreshControl()
-            refresh.tintColor = Theme.mint
-            refresh.addAction(UIAction { [weak self] _ in
-                self?.reload()
-                self?.reloadCosplay()
-            }, for: .valueChanged)
-            scroll.alwaysBounceVertical = true
-            scroll.refreshControl = refresh
         }
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reload()
-        if section == .cosplay { reloadCosplay() }
     }
 
     private func composeCosplay() {
@@ -100,31 +91,6 @@ final class CatalogPage: CityPage {
             return
         }
         push(ComposeCosplayPage(api: api) { [weak self] in self?.scope = "My posts" })
-    }
-
-    private func reloadCosplay() {
-        cosplayTask?.cancel()
-        guard let member = api.memberID else { return }
-        cosplayFailure = false
-        renderCosplay()
-        cosplayTask = Task { [weak self, api] in
-            defer { if !Task.isCancelled { self?.scroll.refreshControl?.endRefreshing() } }
-            do {
-                async let community = api.cosplayPosts()
-                async let mine = api.cosplayPosts(owner: member)
-                let (publicPosts, ownPosts) = try await (community, mine)
-                guard let self, !Task.isCancelled, api.memberID == member else { return }
-                self.publicPosts = publicPosts
-                self.ownPosts = ownPosts
-                self.cosplayLoaded = true
-                self.cosplayFailure = false
-                self.renderCosplay()
-            } catch {
-                guard let self, !Task.isCancelled else { return }
-                self.cosplayFailure = true
-                self.renderCosplay()
-            }
-        }
     }
 
     private func renderCosplay() {
@@ -142,7 +108,7 @@ final class CatalogPage: CityPage {
         }
         if cosplayFailure {
             cosplayGrid.addArrangedSubview(Theme.label("Community posts could not be refreshed.", color: Theme.secondary))
-            cosplayGrid.addArrangedSubview(Theme.textAction("Try again") { [weak self] in self?.reloadCosplay() })
+            cosplayGrid.addArrangedSubview(Theme.textAction("Try again") { [weak self] in self?.reload() })
         }
         if dedicated && !cosplayLoaded && !cosplayFailure {
             cosplayGrid.addArrangedSubview(Theme.label("Loading posts…", color: Theme.secondary))
@@ -177,17 +143,37 @@ final class CatalogPage: CityPage {
                 async let catalog = self.api.catalog()
                 async let reactions = self.api.reactions()
                 let (items, reactionsList) = try await (catalog, reactions)
+                if section == .cosplay {
+                    guard let member = api.memberID else { throw CommunityError.unavailable }
+                    async let community = api.cosplayPosts()
+                    async let mine = api.cosplayPosts(owner: member)
+                    let (published, owned) = try await (community, mine)
+                    try Task.checkCancellation()
+                    guard api.memberID == member else { throw CommunityError.unavailable }
+                    publicPosts = published
+                    ownPosts = owned
+                    cosplayLoaded = true
+                    cosplayFailure = false
+                }
                 guard !Task.isCancelled else { return }
                 self.items = items.filter(self.section.includes)
                 self.saved = Set(reactionsList.filter { $0.kind == "save" }.map(\.catalogId))
                 self.loaded = true
                 self.showStatus(nil)
                 self.render()
+                self.pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
                 self.showStatus("Content could not be refreshed.")
-                self.grid.clear()
-                self.grid.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                if section == .cosplay {
+                    cosplayFailure = true
+                    renderCosplay()
+                }
+                self.pageRefresh.finish(error: "Content could not be updated. Pull down to try again.")
+                if !loaded {
+                    self.grid.clear()
+                    self.grid.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }
@@ -254,7 +240,7 @@ final class CatalogPage: CityPage {
 }
 
 final class CatalogDetail: CityPage {
-    private let items: [CatalogItem]
+    private var items: [CatalogItem]
     private var index: Int
     private var item: CatalogItem { items[index] }
     private var reactions: Set<String> = []
@@ -273,6 +259,7 @@ final class CatalogDetail: CityPage {
     override func viewDidLoad() {
         super.viewDidLoad()
         render()
+        enableRefresh { [weak self] in self?.loadReactions(reloadItem: true) }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -350,20 +337,29 @@ final class CatalogDetail: CityPage {
         present(UIActivityViewController(activityItems: [url], applicationActivities: nil), animated: true)
     }
 
-    private func loadReactions() {
+    private func loadReactions(reloadItem: Bool = false) {
         reactionTask?.cancel()
         let id = item.id
         reactionTask = Task { [weak self] in
             guard let self else { return }
             do {
+                if reloadItem {
+                    let catalog = try await api.catalog()
+                    try Task.checkCancellation()
+                    guard let updated = catalog.first(where: { $0.id == id }) else { throw CommunityError.unavailable }
+                    items[index] = updated
+                    render()
+                }
                 let values = try await self.api.reactions()
                 guard !Task.isCancelled, self.item.id == id else { return }
                 self.reactions = Set(values.filter { $0.catalogId == id }.map(\.kind))
                 self.showStatus(nil)
                 self.renderReactions()
+                self.pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
                 self.showStatus("Likes and saves could not be loaded.")
+                self.pageRefresh.finish(error: "This item could not be updated. Pull down to try again.")
             }
         }
     }
@@ -437,6 +433,7 @@ final class CommentsPage: CityPage {
         total.accessibilityIdentifier = "comments.total"
         body.addArrangedSubview(total)
         body.addArrangedSubview(list)
+        enableRefresh { [weak self] in self?.reload() }
         reload()
     }
 
@@ -458,7 +455,7 @@ final class CommentsPage: CityPage {
                             guard let self else { return }
                             self.push(ProfilePage(memberID: author.id, api: self.api))
                         }
-                        let avatar = MemberAvatar.button(author.avatar, size: 44, label: "Open \(author.displayName)’s profile",
+                        let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
                                                          memberID: author.id, action: openProfile)
                         let identity = Theme.stack([avatar, Theme.textAction(author.displayName, action: openProfile)], axis: .horizontal)
                         identity.alignment = .center
@@ -474,11 +471,14 @@ final class CommentsPage: CityPage {
                     commentBody.accessibilityIdentifier = "comment.body"
                     list.addArrangedSubview(Theme.card([name, commentBody, button]))
                 }
+                pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
+                pageRefresh.finish(error: "Comments could not be updated. Pull down to try again.")
                 showStatus("Comments could not be loaded.")
-                list.clear()
-                list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                if list.arrangedSubviews.isEmpty {
+                    list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }

@@ -2,7 +2,7 @@
 
 Sese is an independent Zootopia fan community. The project uses UIKit, Swift 5 and AVFoundation on portrait iPhones with iOS 16 or later.
 
-Open `Sese.xcodeproj` and select the shared `Sese` scheme. `project.yml` is the source for XcodeGen metadata. Debug uses `im.seex.sao2` and the Yu Sun signing team (`JPTS6M4T5B`). Release uses `com.sese.citycommunit`. iOS gives these builds separate app containers and device sign-in credentials. The UI test target uses `com.sese.citycommunit.uitests`.
+Open `Sese.xcodeproj` and select the shared `Sese` scheme. `project.yml` is the source for XcodeGen metadata. Debug and Release use `com.sese.citycommunit` with the development team unset. The UI test target uses `com.sese.citycommunit.uitests`.
 
 A fresh build fetches and verifies the launcher icon from Sese's Supabase project. The app loads its other artwork and licensed gallery photos over HTTPS. See [media delivery](Docs/Media.md) for the asset paths and credits.
 
@@ -26,9 +26,9 @@ Use the exact simulator name `Sese UI Acceptance` (iPhone 17 Pro) and the `Sese`
 
 Me → Wallet & top up shows the nine [diamond packs](App/CommunityContent/Products.json). StoreKit supplies the localized prices. Pull down to retry unavailable packs and to check for unfinished purchases. The wallet verifies each transaction, credits the signed-in account's device ledger once, and finishes the transaction after saving the credit. Its ImageGen diamond marks the balance, purchase tiers, and activity. District unlocks debit that same balance and appear in their own history. Unlocks and balance are kept on the device for the signed-in account.
 
-The shared `Sese` scheme selects [SeseDiamonds.storekit](Configuration/SeseDiamonds.storekit) under Run → Options → StoreKit Configuration. Running from Xcode uses the local nine-pack catalog and StoreKit test transactions. The file stays outside the application bundle. Use a dedicated acceptance account on the designated simulator. Before installing Debug, verify that any existing app with `im.seex.sao2` on the destination can be replaced.
+The shared `Sese` scheme selects [SeseDiamonds.storekit](Configuration/SeseDiamonds.storekit) under Run → Options → StoreKit Configuration. Running from Xcode uses the local nine-pack catalog and StoreKit test transactions. The file stays outside the application bundle. Use a dedicated acceptance account on the designated simulator.
 
-For Apple sandbox checks, select None in the same Run options and verify that the matching App Store Connect app for `im.seex.sao2` offers the exact Sese product IDs. Release uses the Apple catalog for `com.sese.citycommunit`. Xcode logs the catalog result, missing product IDs, and transaction environment in the `InAppPurchase` category.
+For Apple sandbox checks, select None in the same Run options and verify that the App Store Connect app for `com.sese.citycommunit` offers the exact Sese product IDs. Xcode logs the catalog result, missing product IDs, and transaction environment in the `InAppPurchase` category.
 
 The opt-in `WalletPurchaseTests` case uses the designated simulator and local StoreKit fixture. Run `SeseUITests/WalletPurchaseTests` with parallel testing disabled and `TEST_RUNNER_SESE_STOREKIT_ACCEPTANCE=1`. It checks the nine localized prices, cancellation before checkout, verified credits, and balance persistence after relaunch.
 

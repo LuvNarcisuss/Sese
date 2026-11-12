@@ -35,7 +35,7 @@ private extension CatalogItem {
 
 private final class EditorialShortsProfile: CityPage {
     private let item: CatalogItem
-    private let videos: [CatalogItem]
+    private var videos: [CatalogItem]
     private let openShort: (CatalogItem) -> Void
     private let metrics = Theme.stack(spacing: 8, axis: .horizontal)
     private let tabs = Theme.stack()
@@ -43,6 +43,7 @@ private final class EditorialShortsProfile: CityPage {
     private var cosplay: [CatalogItem] = []
     private var selection = "Shorts"
     private var loadedCosplay = false
+    private var loadTask: Task<Void, Never>?
 
     init(item: CatalogItem, videos: [CatalogItem], api: CommunityAPI, openShort: @escaping (CatalogItem) -> Void) {
         self.item = item
@@ -76,23 +77,36 @@ private final class EditorialShortsProfile: CityPage {
         body.addArrangedSubview(gallery)
         showMetrics(videos.compactMap { api.cachedShortCount($0.id) })
         renderWorks()
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        Task { [weak self, api] in
+        reload()
+    }
+
+    private func reload() {
+        loadTask?.cancel()
+        loadTask = Task { [weak self, api] in
             guard let self else { return }
-            async let counts = try? api.shortCounts(videos.map(\.id))
-            async let catalog = try? api.catalog()
-            let (rows, catalogItems) = await (counts, catalog)
-            if let rows { showMetrics(rows) }
-            if let catalogItems {
-                let hostedIDs = Set(videos.map(\.id))
-                cosplay = catalogItems.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
+            do {
+                let catalog = try await api.catalog()
+                let hosted = catalog.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
+                    HostedShort(item: $0, projectURL: api.configuration.url) != nil }
+                let rows = try await api.shortCounts(hosted.map(\.id))
+                try Task.checkCancellation()
+                videos = hosted
+                showMetrics(rows)
+                let hostedIDs = Set(hosted.map(\.id))
+                cosplay = catalog.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
                     ($0.kind == "Cosplay Look" || $0.kind == "Cosplay Video") && !hostedIDs.contains($0.id) }
                 loadedCosplay = true
+                renderWorks()
+                pageRefresh.finish()
+            } catch {
+                guard !Task.isCancelled else { return }
+                pageRefresh.finish(error: "This creator could not be updated. Pull down to try again.")
             }
-            if selection == "Cosplay" { renderWorks() }
         }
     }
 
@@ -150,11 +164,13 @@ private final class ShortsAction: UIButton {
             view.isAccessibilityElement = false
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
-            NSLayoutConstraint.activate([
-                view.leadingAnchor.constraint(equalTo: leadingAnchor), view.trailingAnchor.constraint(equalTo: trailingAnchor),
-                view.topAnchor.constraint(equalTo: topAnchor), view.bottomAnchor.constraint(equalTo: bottomAnchor)
-            ])
         }
+        NSLayoutConstraint.activate([
+            art.centerXAnchor.constraint(equalTo: centerXAnchor), art.centerYAnchor.constraint(equalTo: centerYAnchor),
+            art.widthAnchor.constraint(equalToConstant: Theme.iconSize), art.heightAnchor.constraint(equalToConstant: Theme.iconSize),
+            fallback.leadingAnchor.constraint(equalTo: leadingAnchor), fallback.trailingAnchor.constraint(equalTo: trailingAnchor),
+            fallback.topAnchor.constraint(equalTo: topAnchor), fallback.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
         count.textAlignment = .center
         count.isAccessibilityElement = false
         addAction(UIAction { [weak self] _ in
@@ -174,7 +190,7 @@ private final class ShortsAction: UIButton {
         fallback.text = label
         guard artworkKey != icon else { return }
         artworkKey = icon
-        if let image = Artwork.reactionImage(icon) {
+        if let image = Artwork.iconImage(icon) {
             art.image = image
             fallback.isHidden = true
             return
@@ -236,8 +252,8 @@ private final class ShortsClipPage: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.ink
         view.accessibilityIdentifier = "shorts.clip.\(item.id)"
-        let actionSize: CGFloat = 48
-        let avatar = MemberAvatar.button(item.creatorPortrait, size: actionSize, label: "Open \(item.creatorName)’s creator profile") {
+        let actionSize = Theme.iconTouchSize
+        let avatar = MemberAvatar.button(item.creatorPortrait, size: Theme.iconSize, label: "Open \(item.creatorName)’s creator profile") {
             [weak self] in self?.openProfile?()
         }
         avatar.accessibilityIdentifier = "shorts.creator"
@@ -320,10 +336,13 @@ private final class ShortsClipPage: UIViewController {
 }
 
 final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate,
-                            SFSafariViewControllerDelegate {
+                            SFSafariViewControllerDelegate, UIGestureRecognizerDelegate {
     private let api: CommunityAPI
     private let pager = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .vertical)
     private let state = Theme.stack()
+    private let pageRefresh = PageRefresh()
+    private var pullTask: Task<Void, Never>?
+    private lazy var pullGesture = UIPanGestureRecognizer(target: self, action: #selector(pulledToRefresh(_:)))
     private var catalog: [HostedShort] = []
     private var items: [HostedShort] = []
     private var reactions: [String: Set<String>] = [:]
@@ -337,7 +356,7 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     private let searchHeader = Theme.stack(spacing: 8, axis: .horizontal)
     private let searchField = Theme.field("Search shorts")
     private weak var searchButton: UIButton?
-    private let searchPanel = UIScrollView()
+    private let searchPanel = ContentScrollView()
     private let searchContent = Theme.stack(spacing: 12)
     private var searchScope = "All"
     private var searching = false
@@ -402,6 +421,14 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         view.addSubview(state)
         view.addSubview(header)
         configureSearch(below: header)
+        pageRefresh.install(on: searchPanel) { [weak self] in self?.reloadFromPull() }
+        pullGesture.delegate = self
+        pullGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(pullGesture)
+        let refreshFeedback = pageRefresh.feedback
+        refreshFeedback.textAlignment = .center
+        refreshFeedback.backgroundColor = Theme.ink.withAlphaComponent(0.75)
+        header.addArrangedSubview(refreshFeedback)
         let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             pager.view.topAnchor.constraint(equalTo: view.topAnchor),
@@ -453,8 +480,77 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         visible = false
+        pullTask?.cancel()
+        pageRefresh.cancel()
         updateTabBarAppearance(fullBleed: false)
         playbackVisibilityChanged()
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === pullGesture else { return true }
+        let velocity = pullGesture.velocity(in: view)
+        return presentedViewController == nil && !searching && !paging && !overlayOpen && !pageRefresh.isRefreshing &&
+            (current == nil || current?.item.id == items.first?.item.id) &&
+            velocity.y > abs(velocity.x) && pullGesture.location(in: view).y > view.safeAreaInsets.top + 60
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        gestureRecognizer === pullGesture || otherGestureRecognizer === pullGesture
+    }
+
+    @objc private func pulledToRefresh(_ gesture: UIPanGestureRecognizer) {
+        let distance = gesture.translation(in: view).y
+        if gesture.state == .changed && !pageRefresh.isRefreshing {
+            pageRefresh.feedback.isHidden = false
+            pageRefresh.feedback.text = distance >= 80 ? "Release to refresh" : "Pull down to refresh"
+        } else if gesture.state == .ended {
+            if distance >= 80 { pageRefresh.begin() }
+            else { pageRefresh.feedback.isHidden = true }
+        } else if gesture.state == .cancelled || gesture.state == .failed {
+            if !pageRefresh.isRefreshing { pageRefresh.feedback.isHidden = true }
+        }
+    }
+
+    private func reloadFromPull() {
+        guard pending.isEmpty else {
+            pageRefresh.finish(error: "Wait for your reaction to finish, then pull down again.")
+            return
+        }
+        catalogTask?.cancel()
+        visibleCatalogTask?.cancel()
+        reactionsTask?.cancel()
+        countsTask?.cancel()
+        pullTask?.cancel()
+        pullTask = Task { [weak self, api] in
+            guard let self else { return }
+            do {
+                async let fetchedCatalog = api.catalog()
+                async let fetchedReactions = api.reactions()
+                let (rows, values) = try await (fetchedCatalog, fetchedReactions)
+                let updated = rows.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
+                _ = try await api.shortCounts(updated.map { $0.item.id })
+                try Task.checkCancellation()
+                let previous = current?.item
+                let oldIDs = catalog.map { $0.item.id }
+                catalog = updated
+                loaded = true
+                reactions = Dictionary(grouping: values, by: \.catalogId).mapValues { Set($0.map(\.kind)) }
+                reactionsReady = true
+                if previous == nil || oldIDs != updated.map({ $0.item.id }) ||
+                    previous != updated.first(where: { $0.item.id == previous?.id })?.item {
+                    applyFilters()
+                } else {
+                    items = catalog.filter { kind == nil || kind == $0.item.kind }
+                }
+                renderReactions()
+                renderSearchResults()
+                pageRefresh.finish()
+            } catch {
+                guard !Task.isCancelled else { return }
+                pageRefresh.finish(error: "Shorts could not be updated. Pull down to try again.")
+            }
+        }
     }
 
     @objc private func willResignActive() { current?.playback.setActive(false) }
@@ -740,6 +836,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         let navigation = UINavigationController(rootViewController: page)
         navigation.setNavigationBarHidden(true, animated: false)
         navigation.modalPresentationStyle = .pageSheet
+        // Pulling the discussion refreshes it; Done closes the sheet.
+        navigation.isModalInPresentation = true
         if let sheet = navigation.sheetPresentationController {
             sheet.detents = [.medium()]
             sheet.prefersGrabberVisible = true

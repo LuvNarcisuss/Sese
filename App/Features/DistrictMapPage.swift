@@ -130,18 +130,32 @@ final class DistrictMapPage: CityPage {
         ]))
         body.addArrangedSubview(builtDistricts)
         NotificationCenter.default.addObserver(self, selector: #selector(render), name: Wallet.didChange, object: wallet)
+        enableRefresh { [weak self] in self?.reloadGuides() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         render()
-        if districtGuides.isEmpty, catalogTask == nil {
-            catalogTask = Task { [weak self, api] in
-                let guides = try? await api.catalog().filter { $0.kind == "District" }
-                guard let self, !Task.isCancelled else { return }
-                self.districtGuides = guides ?? []
-                self.catalogTask = nil
-                self.render()
+        if districtGuides.isEmpty, catalogTask == nil { reloadGuides() }
+    }
+
+    private func reloadGuides() {
+        catalogTask?.cancel()
+        catalogTask = Task { [weak self, api] in
+            guard let self else { return }
+            defer { if !Task.isCancelled { self.catalogTask = nil } }
+            do {
+                let guides = try await api.catalog().filter { $0.kind == "District" }
+                try Task.checkCancellation()
+                _ = try wallet.ledger(for: memberID)
+                districtGuides = guides
+                render()
+                showStatus(nil)
+                pageRefresh.finish()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus("The city could not be updated. Pull down to try again.")
+                pageRefresh.finish(error: "The city could not be updated. Pull down to try again.")
             }
         }
     }

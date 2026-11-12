@@ -39,11 +39,7 @@ final class InboxPage: CityPage {
         searchField.isHidden = true
         search(searchField, into: body) { [weak self] _ in self?.render() }
         body.addArrangedSubview(list)
-        let refresh = UIRefreshControl()
-        refresh.tintColor = Theme.mint
-        refresh.addAction(UIAction { [weak self] _ in self?.reload() }, for: .valueChanged)
-        scroll.alwaysBounceVertical = true
-        scroll.refreshControl = refresh
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -59,7 +55,6 @@ final class InboxPage: CityPage {
         super.viewWillDisappear(animated)
         liveTask?.cancel()
         loadTask?.cancel()
-        scroll.refreshControl?.endRefreshing()
     }
 
     private func browse() { push(MembersPage(api: api)) }
@@ -77,7 +72,6 @@ final class InboxPage: CityPage {
         if !loaded { showStatus("Loading chats…") }
         loadTask = Task { [weak self] in
             guard let self else { return }
-            defer { if !Task.isCancelled { self.scroll.refreshControl?.endRefreshing() } }
             do {
                 async let inbox = self.api.inbox()
                 async let contacts = self.api.chatFriends()
@@ -88,9 +82,11 @@ final class InboxPage: CityPage {
                 self.loaded = true
                 self.showStatus(nil)
                 self.render()
+                self.pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
                 self.showStatus("Chats could not be refreshed.")
+                self.pageRefresh.finish(error: "Chats could not be updated. Pull down to try again.")
                 if !self.loaded {
                     self.list.clear()
                     self.list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
@@ -150,7 +146,7 @@ final class InboxPage: CityPage {
         list.addArrangedSubview(heading)
         list.addArrangedSubview(Theme.label("Meet the people who make this city feel like home.", color: Theme.secondary))
         let artwork = Theme.artwork("chats", mode: .scaleAspectFit)
-        artwork.heightAnchor.constraint(equalToConstant: 84).isActive = true
+        artwork.heightAnchor.constraint(equalToConstant: Theme.iconSize).isActive = true
         list.addArrangedSubview(Theme.card([
             artwork,
             Theme.label("Find your first friend", size: 24, display: true),
@@ -160,7 +156,7 @@ final class InboxPage: CityPage {
     }
 
     private func chatRow(peer: UUID, name: String, avatarID: String?, conversation: InboxItem?) -> UIView {
-        let avatar = MemberAvatar.button(avatarID, size: 48, label: "Open \(name)’s profile", memberID: peer) { [weak self] in
+        let avatar = MemberAvatar.button(avatarID, size: Theme.iconSize, label: "Open \(name)’s profile", memberID: peer) { [weak self] in
             guard let self else { return }
             self.push(ProfilePage(memberID: peer, api: self.api))
         }
@@ -204,6 +200,7 @@ final class InboxPage: CityPage {
 }
 
 final class MembersPage: CityPage {
+    private var loadTask: Task<Void, Never>?
     private let list = Theme.stack()
     private let searchField = Theme.field("Find a resident")
     private var people: [Member] = []
@@ -224,6 +221,7 @@ final class MembersPage: CityPage {
         })
         search(searchField, into: body) { [weak self] _ in self?.render() }
         body.addArrangedSubview(list)
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -232,20 +230,26 @@ final class MembersPage: CityPage {
     }
 
     private func reload() {
-        Task {
+        loadTask?.cancel()
+        loadTask = Task {
             do {
                 async let members = api.members()
                 async let follows = api.follows()
                 let (users, relationships) = try await (members, follows)
+                try Task.checkCancellation()
                 people = users.filter { $0.id != api.memberID }
                 following = Set(relationships.filter { $0.followerId == api.memberID }.map(\.targetId))
                 followers = Set(relationships.filter { $0.targetId == api.memberID }.map(\.followerId))
                 showStatus(nil)
                 render()
+                pageRefresh.finish()
             } catch {
+                guard !Task.isCancelled else { return }
                 showStatus("Members could not be loaded.")
-                list.clear()
-                list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                pageRefresh.finish(error: "Members could not be updated. Pull down to try again.")
+                if list.arrangedSubviews.isEmpty {
+                    list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }
@@ -320,6 +324,7 @@ final class ThreadPage: CityPage, PHPickerViewControllerDelegate {
         body.addArrangedSubview(photoComposer)
         body.addArrangedSubview(list)
         updateComposer()
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -368,13 +373,16 @@ final class ThreadPage: CityPage, PHPickerViewControllerDelegate {
                 if let observed = messages.first(where: { $0.senderId == self.peerID }) {
                     try? await self.api.setPreference(["last_read_at": observed.createdAt], peer: self.peerID)
                 }
+                if !Task.isCancelled { self.pageRefresh.finish() }
             } catch {
                 guard !Task.isCancelled else { return }
                 self.showStatus("Messages could not be refreshed.")
+                self.pageRefresh.finish(error: "Messages could not be updated. Pull down to try again.")
                 self.maySend = false
                 self.updateComposer()
-                self.list.clear()
-                self.list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                if self.list.arrangedSubviews.isEmpty {
+                    self.list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }

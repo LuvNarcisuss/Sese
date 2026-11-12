@@ -47,10 +47,10 @@ enum MemberAvatar {
         portrait.translatesAutoresizingMaskIntoConstraints = false
         button.addSubview(portrait)
         NSLayoutConstraint.activate([
-            portrait.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-            portrait.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-            portrait.topAnchor.constraint(equalTo: button.topAnchor),
-            portrait.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+            portrait.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            portrait.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+            button.widthAnchor.constraint(equalToConstant: max(size, Theme.iconTouchSize)),
+            button.heightAnchor.constraint(equalToConstant: max(size, Theme.iconTouchSize))
         ])
         button.accessibilityLabel = label
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
@@ -134,6 +134,7 @@ final class ProfilePage: CityPage {
         body.addArrangedSubview(categories)
         body.addArrangedSubview(content)
         renderCategories()
+        enableRefresh { [weak self] in self?.walletChanged(); self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -151,6 +152,7 @@ final class ProfilePage: CityPage {
         if profile == nil { showStatus("Loading profile…") }
         loadTask = Task { [weak self] in
             guard let self else { return }
+            var partialFailure = false
             do {
                 async let member = api.member(memberID)
                 async let counts = api.counts(memberID)
@@ -161,13 +163,14 @@ final class ProfilePage: CityPage {
                 let (person, countsValue, followsValue, ownedWorks, availableCatalog) =
                     try await (member, counts, follows, memberWorks, catalog)
                 let ownedCosplay = await cosplay
+                partialFailure = ownedCosplay == nil
                 guard !Task.isCancelled else { return }
                 let previous = profile
                 profile = person
                 stats = countsValue
                 relations = followsValue
                 works = ownedWorks
-                cosplayPosts = ownedCosplay
+                if let ownedCosplay { cosplayPosts = ownedCosplay }
                 items = availableCatalog
                 if previous == nil || previous?.avatar != person.avatar {
                     avatar.clear()
@@ -182,6 +185,7 @@ final class ProfilePage: CityPage {
             } catch {
                 guard !Task.isCancelled else { return }
                 showStatus("This profile could not be refreshed.")
+                pageRefresh.finish(error: "This profile could not be updated. Pull down to try again.")
                 if profile == nil {
                     content.clear()
                     content.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
@@ -189,6 +193,9 @@ final class ProfilePage: CityPage {
                 return
             }
             if own { await reloadCollections() }
+            guard !Task.isCancelled else { return }
+            pageRefresh.finish(error: (own && collectionError) || partialFailure
+                ? "Some collections could not be updated. Pull down to try again." : nil)
         }
     }
 
@@ -599,14 +606,22 @@ final class EditProfilePage: CityPage {
 }
 
 final class BlockedPage: CityPage {
+    private var loadTask: Task<Void, Never>?
     init(api: CommunityAPI) { super.init("Blocked members", api: api) }
     required init?(coder: NSCoder) { return nil }
-    override func viewDidLoad() { super.viewDidLoad(); reload() }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        enableRefresh { [weak self] in self?.reload() }
+        reload()
+    }
 
     private func reload() {
-        Task {
+        loadTask?.cancel()
+        loadTask = Task {
             do {
                 let records = try await api.blocks()
+                try Task.checkCancellation()
+                showStatus(nil)
                 body.clear()
                 if records.isEmpty { body.addArrangedSubview(Theme.empty("No blocked members", "Members you block will appear here.")) }
                 for (index, record) in records.enumerated() {
@@ -615,7 +630,12 @@ final class BlockedPage: CityPage {
                         Theme.button("Unblock") { [weak self] in self?.unblock(record.targetId) }
                     ]))
                 }
-            } catch { showStatus("Blocked members could not be loaded.") }
+                pageRefresh.finish()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus("Blocked members could not be loaded.")
+                pageRefresh.finish(error: "Blocked members could not be updated. Pull down to try again.")
+            }
         }
     }
 
@@ -628,6 +648,9 @@ final class BlockedPage: CityPage {
 }
 
 final class CreditsPage: CityPage {
+    private var loadTask: Task<Void, Never>?
+    private let credits = Theme.stack()
+
     init(api: CommunityAPI) { super.init("Media credits", api: api) }
     required init?(coder: NSCoder) { return nil }
 
@@ -635,13 +658,29 @@ final class CreditsPage: CityPage {
         super.viewDidLoad()
         body.addArrangedSubview(Theme.empty("Fan community", "Zootopia and its characters belong to Disney. This community is independently operated."))
         body.addArrangedSubview(Theme.empty("Artwork and type", "The interface artwork was created with ImageGen. Fredoka and Comic Neue are distributed under the SIL Open Font License."))
-        Task {
+        body.addArrangedSubview(credits)
+        enableRefresh { [weak self] in self?.reload() }
+        reload()
+    }
+
+    private func reload() {
+        loadTask?.cancel()
+        loadTask = Task {
             do {
-                for item in try await api.catalog() {
-                    body.addArrangedSubview(Theme.card([Theme.label(item.title, display: true),
+                let items = try await api.catalog()
+                try Task.checkCancellation()
+                credits.clear()
+                for item in items {
+                    credits.addArrangedSubview(Theme.card([Theme.label(item.title, display: true),
                         Theme.button(item.credit) { [weak self] in self?.open(item.sourceUrl) }]))
                 }
-            } catch { showStatus("Source credits could not be refreshed.") }
+                showStatus(nil)
+                pageRefresh.finish()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus("Source credits could not be refreshed.")
+                pageRefresh.finish(error: "Credits could not be updated. Pull down to try again.")
+            }
         }
     }
 }
@@ -653,7 +692,9 @@ final class WalletPage: CityPage {
     private let offerGrid = Theme.stack(spacing: 8)
     private let offerStatus = Theme.label("", size: 15, color: Theme.secondary)
     private let history = Theme.stack()
-    private let refresh = UIRefreshControl()
+    private var recoveryRequest: Task<Void, Never>?
+    private var priceFailure: String?
+    private var ledgerFailure: String?
     private var offers: [WalletOffer] = []
     private var products: [String: Product] = [:]
     private var diamondImage: UIImage?
@@ -676,7 +717,7 @@ final class WalletPage: CityPage {
     override func viewDidLoad() {
         super.viewDidLoad()
         balance.accessibilityIdentifier = "wallet.balance"
-        let balanceRow = Theme.stack([diamondArtwork(size: 58), balance], spacing: 10, axis: .horizontal)
+        let balanceRow = Theme.stack([diamondArtwork(), balance], spacing: 10, axis: .horizontal)
         balanceRow.alignment = .center
         body.addArrangedSubview(Theme.card([Theme.label("Diamond balance", color: Theme.secondary), balanceRow]))
         body.addArrangedSubview(Theme.label("Diamond packs", size: 24, display: true))
@@ -684,10 +725,7 @@ final class WalletPage: CityPage {
         body.addArrangedSubview(offerGrid)
         body.addArrangedSubview(Theme.label("Purchase history", size: 24, display: true))
         body.addArrangedSubview(history)
-        scroll.alwaysBounceVertical = true
-        refresh.tintColor = Theme.mint
-        refresh.addTarget(self, action: #selector(refreshWallet), for: .valueChanged)
-        scroll.refreshControl = refresh
+        enableRefresh { [weak self] in self?.refreshWallet() }
         NotificationCenter.default.addObserver(self, selector: #selector(updateLedger), name: Wallet.didChange, object: wallet)
         NotificationCenter.default.addObserver(self, selector: #selector(renderOffers),
                                                name: UIContentSizeCategory.didChangeNotification, object: nil)
@@ -695,15 +733,15 @@ final class WalletPage: CityPage {
         loadOffers()
         Task { [weak self] in
             guard let art = await Artwork.image("diamond"), let self else { return }
-            self.diamondImage = art.scaled(to: 52)
+            self.diamondImage = art
             self.renderOffers()
         }
     }
 
-    private func diamondArtwork(size: CGFloat) -> UIView {
+    private func diamondArtwork() -> UIView {
         let icon = Theme.artwork("diamond", mode: .scaleAspectFit)
-        icon.widthAnchor.constraint(equalToConstant: size).isActive = true
-        icon.heightAnchor.constraint(equalToConstant: size).isActive = true
+        icon.widthAnchor.constraint(equalToConstant: Theme.iconSize).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: Theme.iconSize).isActive = true
         return icon
     }
 
@@ -711,11 +749,12 @@ final class WalletPage: CityPage {
         history.clear()
         do {
             let ledger = try wallet.ledger(for: memberID)
+            ledgerFailure = nil
             balance.text = ledger.balance.formatted()
             if ledger.purchases.isEmpty { history.addArrangedSubview(Theme.empty("No purchases yet", "Completed purchases appear here.")) }
             for purchase in ledger.purchases {
                 let row = Theme.stack([
-                    diamondArtwork(size: 40),
+                    diamondArtwork(),
                     Theme.stack([
                         Theme.label("+\(purchase.diamonds.formatted()) diamonds", color: Theme.mint, display: true),
                         Theme.label(purchase.date.formatted(date: .abbreviated, time: .shortened), color: Theme.secondary)
@@ -738,12 +777,16 @@ final class WalletPage: CityPage {
                     addDistrictDebit(district.name, diamonds: district.diamonds, date: district.date)
                 }
             }
-        } catch { balance.text = "Unavailable"; showStatus(error.localizedDescription) }
+        } catch {
+            ledgerFailure = "Your balance could not be loaded. Pull down to try again."
+            balance.text = "Unavailable"
+            showStatus(error.localizedDescription)
+        }
     }
 
     private func addDistrictDebit(_ title: String, diamonds: Int, date: Date) {
         let row = Theme.stack([
-            diamondArtwork(size: 40),
+            diamondArtwork(),
             Theme.stack([
                 Theme.label(title, size: 17, display: true),
                 Theme.label("−\(diamonds.formatted()) diamonds", color: Theme.gold),
@@ -755,10 +798,21 @@ final class WalletPage: CityPage {
     }
 
     @objc private func refreshWallet() {
-        guard !buying else { refresh.endRefreshing(); return }
+        guard !buying else {
+            pageRefresh.finish(error: "Finish your purchase before updating the wallet.")
+            return
+        }
         showStatus(nil)
         updateLedger()
-        wallet.recover(for: memberID)
+        recoveryRequest?.cancel()
+        recoveryRequest = Task { [weak self] in
+            guard let self else { return }
+            await wallet.recoverAndWait(for: memberID)
+            guard !Task.isCancelled else { return }
+            updateLedger()
+            recoveryRequest = nil
+            if catalogRequest == nil { pageRefresh.finish(error: priceFailure ?? ledgerFailure) }
+        }
         loadOffers()
     }
 
@@ -807,7 +861,8 @@ final class WalletPage: CityPage {
         self.products = products
         setOfferStatus(message)
         renderOffers()
-        refresh.endRefreshing()
+        priceFailure = message
+        if recoveryRequest == nil { pageRefresh.finish(error: message ?? ledgerFailure) }
     }
 
     private func setOfferStatus(_ message: String?) {

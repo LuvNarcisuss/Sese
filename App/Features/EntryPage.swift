@@ -69,14 +69,14 @@ final class EntryPage: UIViewController {
             guard let unchecked, let checked, let box else { return }
             box.setTitle(nil, for: .normal)
             box.setTitle(nil, for: .selected)
-            box.setImage(unchecked.scaled(to: 34), for: .normal)
-            box.setImage(checked.scaled(to: 34), for: .selected)
+            box.setImage(unchecked, for: .normal)
+            box.setImage(checked, for: .selected)
         }
         box.accessibilityLabel = "Agree to the agreements"
         box.accessibilityIdentifier = "entry.consent"
         box.accessibilityValue = "Unchecked"
-        box.widthAnchor.constraint(equalToConstant: 44).isActive = true
-        box.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        box.widthAnchor.constraint(equalToConstant: Theme.iconTouchSize).isActive = true
+        box.heightAnchor.constraint(equalToConstant: Theme.iconTouchSize).isActive = true
         box.addAction(UIAction { [weak self] _ in
             guard let self, let box = self.consentBox else { return }
             box.isSelected.toggle()

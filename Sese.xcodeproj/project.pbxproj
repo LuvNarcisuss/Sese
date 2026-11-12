@@ -24,6 +24,7 @@
 		A59BE314F9BAD0096F19C403 /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3069AEEEE4FF1D38FC702B4 /* Design.swift */; };
 		A5EC50BCC6B56859C503C695 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C73AC8AD50C4ACFF9CA1AB32 /* Assets.xcassets */; };
 		AA08F035DA314CB3B60C7048 /* EntryAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA91A2E6D51703092631E5E /* EntryAcceptanceTests.swift */; };
+		B075E30AE7B613E03538C004 /* PullRefreshAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17E0A51E3060AC3A19BCA82 /* PullRefreshAcceptanceTests.swift */; };
 		B2FFB285200CCEB936BDC68D /* CosplayPosts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC90D006B99C398923D8AE35 /* CosplayPosts.swift */; };
 		B97E6CDFA569B0E4CFF6535A /* ProfilePages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3ABD38D61D68D8359F6F2E /* ProfilePages.swift */; };
 		E04B8AD624B5A058A2FA8C41 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFE7E38C6659421375B6863 /* AppDelegate.swift */; };
@@ -70,6 +71,7 @@
 		DDD04BDC585D76568F32DF91 /* Wallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wallet.swift; sourceTree = "<group>"; };
 		EBA91A2E6D51703092631E5E /* EntryAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryAcceptanceTests.swift; sourceTree = "<group>"; };
 		EFCB72DE791862F25849D0E4 /* DeviceCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCredential.swift; sourceTree = "<group>"; };
+		F17E0A51E3060AC3A19BCA82 /* PullRefreshAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRefreshAcceptanceTests.swift; sourceTree = "<group>"; };
 		F78CB4B887974FE6E0F2356F /* ShortsPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortsPlayback.swift; sourceTree = "<group>"; };
 		FA265D702B7DFD46CF86827C /* ChatPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPages.swift; sourceTree = "<group>"; };
 		FF18CDC31B2F184511717D77 /* Agreements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agreements.swift; sourceTree = "<group>"; };
@@ -92,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				EBA91A2E6D51703092631E5E /* EntryAcceptanceTests.swift */,
+				F17E0A51E3060AC3A19BCA82 /* PullRefreshAcceptanceTests.swift */,
 				174DC26CE6A8539453B947C5 /* WalletPurchaseTests.swift */,
 			);
 			path = UITests;
@@ -335,6 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA08F035DA314CB3B60C7048 /* EntryAcceptanceTests.swift in Sources */,
+				B075E30AE7B613E03538C004 /* PullRefreshAcceptanceTests.swift in Sources */,
 				0CC7835FDF0F4C840BE65A89 /* WalletPurchaseTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -461,14 +465,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = JPTS6M4T5B;
 				INFOPLIST_FILE = App/Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = im.seex.sao2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sese.citycommunit;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

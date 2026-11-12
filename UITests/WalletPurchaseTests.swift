@@ -14,7 +14,7 @@ final class WalletPurchaseTests: XCTestCase {
         session.disableDialogs = true
         defer { session.resetToDefaultState() }
 
-        let app = XCUIApplication(bundleIdentifier: "im.seex.sao2")
+        let app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         openWallet(in: app)
 

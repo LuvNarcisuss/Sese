@@ -36,7 +36,7 @@ enum CommunityError: LocalizedError {
     }
 }
 
-struct CatalogItem: Decodable, Identifiable {
+struct CatalogItem: Decodable, Identifiable, Equatable {
     let id: String
     let kind: String
     let title: String

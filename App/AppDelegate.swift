@@ -48,9 +48,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControlle
             let navigation = navigation(page)
             let item = UITabBarItem(title: title, image: nil, selectedImage: nil)
             item.accessibilityLabel = title
+            item.imageInsets = .zero
             navigation.tabBarItem = item
             Task { [weak item] in
-                let image = await Artwork.image(icon)?.scaled(to: 27)
+                let image = await Artwork.image(icon)
                 item?.image = image
                 item?.selectedImage = image
             }
@@ -61,6 +62,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControlle
         appearance.backgroundColor = Theme.ink
         appearance.shadowColor = Theme.line
         for layout in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {
+            layout.normal.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: 2)
+            layout.selected.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: 2)
             layout.normal.titleTextAttributes = [.font: Theme.font(11, display: true), .foregroundColor: Theme.secondary]
             layout.selected.titleTextAttributes = [.font: Theme.font(11, display: true), .foregroundColor: Theme.mint]
         }

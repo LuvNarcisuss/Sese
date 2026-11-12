@@ -4,9 +4,9 @@ Use the `Sese` scheme and `Sese UI Acceptance` (iPhone 17 Pro, device `0E1EA5DB-
 
 ## StoreKit purchase acceptance
 
-On November 12, 2026, Xcode 26.0.1 built the current `Sese` Debug app and UI test runner for `Sese UI Acceptance` (iPhone 17 Pro, iOS 26.0.1). The app used Bundle ID `im.seex.sao2` and ad hoc simulator signing. The app was installed and launched before XCTest, and its executable, debug library, and Info.plist matched the current build after the run.
+On November 12, 2026, Xcode 26.0.1 built the `Sese` Debug app and UI test runner for `Sese UI Acceptance` (iPhone 17 Pro, iOS 26.0.1). This run used the temporary Bundle ID `im.seex.sao2` and ad hoc simulator signing. The app was installed and launched before XCTest, and its executable, debug library, and Info.plist matched that build after the run.
 
-`WalletPurchaseTests.testLocalStoreKitPurchasesPersist` passed on the designated simulator with parallel testing disabled. One test executed with zero failures or skips. All nine localized prices matched the configured USD prices. Canceling the app confirmation preserved the balance and transaction count. The nine completed purchases credited exactly 172,500 diamonds, and the balance remained 172,500 after relaunch. The current build was relaunched and left running on the welcome screen after XCTest.
+`WalletPurchaseTests.testLocalStoreKitPurchasesPersist` passed on the designated simulator with parallel testing disabled. One test executed with zero failures or skips. All nine localized prices matched the configured USD prices. Canceling the app confirmation preserved the balance and transaction count. The nine completed purchases credited exactly 172,500 diamonds, and the balance remained 172,500 after relaunch. The test build was relaunched and left running on the welcome screen after XCTest.
 
 StoreKit Test used `Configuration/SeseDiamonds.storekit` with native payment dialogs disabled. Native payment sheet behavior, physical iPhone signing, Apple sandbox, and production purchases remain unverified.
 

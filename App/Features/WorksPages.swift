@@ -1,6 +1,7 @@
 import UIKit
 
 final class CommunityWorksPage: CityPage {
+    private var loadTask: Task<Void, Never>?
     private let list = Theme.stack()
 
     init(api: CommunityAPI) { super.init("Community videos", api: api) }
@@ -13,6 +14,7 @@ final class CommunityWorksPage: CityPage {
             self.push(SubmitWorkPage(api: self.api))
         })
         body.addArrangedSubview(list)
+        enableRefresh { [weak self] in self?.reload() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -22,9 +24,11 @@ final class CommunityWorksPage: CityPage {
 
     private func reload() {
         showStatus("Loading community videos…")
-        Task {
+        loadTask?.cancel()
+        loadTask = Task {
             do {
                 let works = try await api.works()
+                try Task.checkCancellation()
                 showStatus(nil)
                 list.clear()
                 if works.isEmpty {
@@ -36,7 +40,7 @@ final class CommunityWorksPage: CityPage {
                         self.push(ProfilePage(memberID: work.ownerId, api: self.api))
                     }
                     let name = work.author?.displayName ?? "City Resident"
-                    let avatar = MemberAvatar.button(work.author?.avatar, size: 44, label: "Open \(name)’s profile",
+                    let avatar = MemberAvatar.button(work.author?.avatar, size: Theme.iconSize, label: "Open \(name)’s profile",
                                                      memberID: work.ownerId, action: openProfile)
                     let author = Theme.stack([avatar, Theme.textAction(name, action: openProfile)], spacing: 8, axis: .horizontal)
                     author.alignment = .center
@@ -50,17 +54,22 @@ final class CommunityWorksPage: CityPage {
                         }
                     ]))
                 }
+                pageRefresh.finish()
             } catch {
+                guard !Task.isCancelled else { return }
                 showStatus("Community videos could not be refreshed.")
-                list.clear()
-                list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                pageRefresh.finish(error: "Videos could not be updated. Pull down to try again.")
+                if list.arrangedSubviews.isEmpty {
+                    list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }
 }
 
 final class MemberWorkPage: CityPage {
-    private let work: MemberWork
+    private var work: MemberWork
+    private var reloadTask: Task<Void, Never>?
     private var engagement: PublicationReactionBar?
 
     init(work: MemberWork, api: CommunityAPI) {
@@ -72,6 +81,14 @@ final class MemberWorkPage: CityPage {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        enableRefresh { [weak self] in self?.reloadWork() }
+        renderWork()
+    }
+
+    private func renderWork() {
+        body.clear()
+        actions.clear()
+        engagement = nil
         body.addArrangedSubview(Theme.label(work.title, size: 26, display: true))
         if !work.caption.isEmpty { body.addArrangedSubview(Theme.label(work.caption, color: Theme.secondary)) }
         body.addArrangedSubview(Theme.button("Watch at source", icon: "shorts", accent: true) { [weak self] in
@@ -88,6 +105,28 @@ final class MemberWorkPage: CityPage {
                 guard let self else { return }
                 self.report(["work_id": self.work.id.uuidString])
             })
+        }
+    }
+
+    private func reloadWork() {
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let rows = try await api.works(owner: work.ownerId, ids: [work.id])
+                try Task.checkCancellation()
+                guard let updated = rows.first else { throw CommunityError.unavailable }
+                work = updated
+                renderWork()
+                if let engagement {
+                    engagement.load { [weak self] error in self?.pageRefresh.finish(error: error) }
+                } else {
+                    pageRefresh.finish()
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                pageRefresh.finish(error: "This video could not be updated. Pull down to try again.")
+            }
         }
     }
 
@@ -121,15 +160,20 @@ final class PublicationReactionBar {
         render()
     }
 
-    func load() {
-        guard !busy else { return }
+    func load(completion: ((String?) -> Void)? = nil) {
+        guard !busy else {
+            completion?("Wait for your reaction to finish, then pull down again.")
+            return
+        }
         loadTask?.cancel()
         loadTask = Task { [weak self] in
             guard let self else { return }
             do {
                 try await self.refresh()
+                completion?(nil)
             } catch {
                 guard !Task.isCancelled else { return }
+                completion?("Likes and saves could not be updated. Pull down to try again.")
                 self.status.text = "Likes and saves could not be refreshed."
                 self.status.isHidden = false
                 self.render()
