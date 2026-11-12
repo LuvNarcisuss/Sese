@@ -15,13 +15,49 @@ struct WalletPurchase: Codable {
     let date: Date
 }
 
+enum CityDistrict: String, CaseIterable {
+    case central = "city-center"
+    case sahara = "district-sahara"
+    case tundra = "district-tundra"
+    case rainforest = "district-rainforest"
+
+    var name: String {
+        switch self {
+        case .central: return "City Center"
+        case .sahara: return "Sahara Square"
+        case .tundra: return "Tundratown"
+        case .rainforest: return "Rainforest District"
+        }
+    }
+
+    var diamondCost: Int {
+        switch self {
+        case .central: return 0
+        case .sahara: return 30
+        case .tundra: return 45
+        case .rainforest: return 60
+        }
+    }
+}
+
+struct DistrictUnlock: Codable {
+    let diamonds: Int
+    let date: Date
+}
+
 struct WalletLedger: Codable {
     var purchases: [WalletPurchase] = []
-    var balance: Int { purchases.reduce(0) { $0 + $1.diamonds } }
+    var districtUnlocks: [String: DistrictUnlock]?
+    var credited: Int { purchases.reduce(0) { $0 + $1.diamonds } }
+    var balance: Int { credited - (districtUnlocks ?? [:]).values.reduce(0) { $0 + $1.diamonds } }
+
+    func isUnlocked(_ district: CityDistrict) -> Bool {
+        district == .central || districtUnlocks?[district.rawValue] != nil
+    }
 }
 
 enum WalletError: LocalizedError {
-    case invalidCatalog, productUnavailable, paymentsRestricted, unverified, accountChanged, invalidLedger, deliveryPending
+    case invalidCatalog, productUnavailable, paymentsRestricted, unverified, accountChanged, invalidLedger, deliveryPending, insufficientDiamonds
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +68,7 @@ enum WalletError: LocalizedError {
         case .accountChanged: return "Log in to the original account to complete this purchase."
         case .invalidLedger: return "Your wallet could not be opened. Please try again."
         case .deliveryPending: return "Your purchase is awaiting delivery. Pull down to check your balance again."
+        case .insufficientDiamonds: return "You do not have enough diamonds to unlock this district."
         }
     }
 }
@@ -163,10 +200,35 @@ final class Wallet {
                 }
                 balance += purchase.diamonds
             }
+            for (id, unlock) in ledger.districtUnlocks ?? [:] {
+                guard let district = CityDistrict(rawValue: id), district != .central,
+                      unlock.diamonds > 0, unlock.diamonds <= balance else {
+                    throw WalletError.invalidLedger
+                }
+                balance -= unlock.diamonds
+            }
             return ledger
         } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
             return WalletLedger()
         }
+    }
+
+    func unlock(_ district: CityDistrict, for member: UUID) throws {
+        guard account == member else { throw WalletError.accountChanged }
+        var ledger = try ledger(for: member)
+        guard !ledger.isUnlocked(district) else { return }
+        guard ledger.balance >= district.diamondCost else { throw WalletError.insufficientDiamonds }
+        var unlocks = ledger.districtUnlocks ?? [:]
+        unlocks[district.rawValue] = DistrictUnlock(diamonds: district.diamondCost, date: Date())
+        ledger.districtUnlocks = unlocks
+        try save(ledger, for: member)
+    }
+
+    private func save(_ ledger: WalletLedger, for member: UUID) throws {
+        let file = try ledgerURL(member)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(ledger).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        NotificationCenter.default.post(name: Self.didChange, object: self)
     }
 
     private func configuredOffers() throws -> [String: WalletOffer] {
@@ -188,15 +250,12 @@ final class Wallet {
         var ledger = try ledger(for: member)
         if !ledger.purchases.contains(where: { $0.transactionID == transaction.id }) {
             let (diamonds, overflow) = offer.diamonds.multipliedReportingOverflow(by: transaction.purchasedQuantity)
-            guard !overflow, diamonds > 0, diamonds <= Int.max - ledger.balance else {
+            guard !overflow, diamonds > 0, diamonds <= Int.max - ledger.credited else {
                 throw WalletError.invalidLedger
             }
             ledger.purchases.insert(WalletPurchase(transactionID: transaction.id, productID: offer.productID,
                                                    diamonds: diamonds, date: transaction.purchaseDate), at: 0)
-            let file = try ledgerURL(member)
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(ledger).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            NotificationCenter.default.post(name: Self.didChange, object: self)
+            try save(ledger, for: member)
         }
         await transaction.finish()
         logger.info("Finished pack \(offer.productID, privacy: .public) in \(transaction.environment.rawValue, privacy: .public).")

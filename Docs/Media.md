@@ -33,6 +33,8 @@ These records preserve their catalog IDs and original sources for existing inter
 
 Photographed people appear as editorial subjects. They are not presented as accounts, endorsers or message recipients.
 
+Member avatars use the selected portrait or a stable choice from the credited cosplay photos. Shorts editorial creator pages use portraits from the same set as themed editorial imagery, with the portrait source and the clip creator credited separately.
+
 ## Additional cosplay sources
 
 The following sources are retained for selection. Preview-frame or photo-byte retrieval is still pending, so these entries have no in-app media card.
@@ -48,6 +50,10 @@ The following sources are retained for selection. Preview-frame or photo-byte re
 ## Generated artwork and type
 
 ImageGen generated every navigation icon, toolbar icon, launcher icon, portrait background, and district image separately. The [artwork manifest](Artwork.json) records the source, Storage object paths, and hashes. The interface uses Fredoka and Comic Neue, with their SIL Open Font License files in the font resource folder. UIKit-provided system surfaces follow the operating system's accessibility and typography behavior.
+
+## City exploration and wallet artwork
+
+The interactive city map uses an ImageGen 4:3 aerial illustration of City Center, Sahara Square, Tundratown, and Rainforest District. UIKit overlays the district controls on the corresponding areas. The wallet and its activity use a separate ImageGen diamond with a transparent canvas. The artwork manifest records both source files and the verified public Supabase object hashes.
 
 ## Storage and build delivery
 

@@ -12,21 +12,22 @@ enum MemberAvatar {
     static let choices: [Choice] = [
         Choice(id: "expo-judy", name: "Judy Hopps cosplay", crop: CGRect(x: 410, y: 135, width: 373, height: 373)),
         Choice(id: "expo-nick", name: "Nick Wilde cosplay", crop: CGRect(x: 249, y: 0, width: 303, height: 303)),
-        Choice(id: "expo-duo", name: "Anime Expo duo", crop: nil)
+        Choice(id: "expo-duo", name: "Anime Expo duo", crop: CGRect(x: 115, y: 0, width: 740, height: 740)),
+        Choice(id: "fan-duo", name: "KodachiCon duo", crop: CGRect(x: 355, y: 255, width: 920, height: 920))
     ]
     static let credit = URL(string: "https://commons.wikimedia.org/wiki/File:Cosplay_of_Judy_Hopps_and_Nick_Wilde_from_Zootopia_at_Anime_Expo_2016_(28086759383).jpg")
-    static func view(_ id: String?, size: CGFloat) -> UIView {
+    static let fanCredit = URL(string: "https://commons.wikimedia.org/wiki/File:KodachiCon_2026_19_-_Judy_%26_Nick.jpg")
+
+    static func view(_ id: String?, size: CGFloat, memberID: UUID? = nil) -> UIView {
         let avatar = UIImageView()
-        avatar.contentMode = .scaleAspectFit
-        let choice = choices.first { $0.id == id }
+        avatar.contentMode = .scaleAspectFill
+        let fallbackIndex = Int(memberID?.uuid.0 ?? 0) % choices.count
+        let choice = choices.first { $0.id == id } ?? choices[fallbackIndex]
         Task { [weak avatar] in
-            if let choice, let photo = await Artwork.image(at: Artwork.expoPortrait) {
-                let crop = choice.crop.flatMap { photo.cgImage?.cropping(to: $0) }
-                avatar?.contentMode = .scaleAspectFill
-                avatar?.image = crop.map { UIImage(cgImage: $0) } ?? photo
-            } else {
-                avatar?.image = await Artwork.image("profile")
-            }
+            let url = choice.id == "fan-duo" ? Artwork.fanPortrait : Artwork.expoPortrait
+            guard let photo = await Artwork.image(at: url) else { return }
+            let crop = choice.crop.flatMap { photo.cgImage?.cropping(to: $0) }
+            avatar?.image = crop.map { UIImage(cgImage: $0) } ?? photo
         }
         avatar.backgroundColor = Theme.ink
         avatar.clipsToBounds = true
@@ -36,6 +37,24 @@ enum MemberAvatar {
         avatar.widthAnchor.constraint(equalToConstant: size).isActive = true
         avatar.heightAnchor.constraint(equalTo: avatar.widthAnchor).isActive = true
         return avatar
+    }
+
+    static func button(_ id: String?, size: CGFloat, label: String, memberID: UUID? = nil,
+                       action: @escaping () -> Void) -> UIButton {
+        let button = UIButton(type: .custom)
+        let portrait = view(id, size: size, memberID: memberID)
+        portrait.isUserInteractionEnabled = false
+        portrait.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(portrait)
+        NSLayoutConstraint.activate([
+            portrait.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            portrait.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            portrait.topAnchor.constraint(equalTo: button.topAnchor),
+            portrait.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+        ])
+        button.accessibilityLabel = label
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
     }
 }
 
@@ -48,6 +67,7 @@ final class ProfilePage: CityPage {
     private var relations: [Follow] = []
     private var items: [CatalogItem] = []
     private var works: [MemberWork] = []
+    private var cosplayPosts: [CosplayPost]?
     private var reactions: [Reaction] = []
     private var scope = "Saved"
     private let content = Theme.stack(spacing: 10)
@@ -93,10 +113,13 @@ final class ProfilePage: CityPage {
                 async let counts = self.api.counts(self.memberID)
                 async let relations = self.api.follows()
                 async let works = self.api.works(owner: self.memberID)
+                async let cosplay = try? self.api.cosplayPosts(owner: self.memberID)
                 let (profile, stats, follows, memberWorks) = try await (member, counts, relations, works)
                 let collection = self.own ? try await self.api.catalog() : []
                 let reactions = self.own ? try await self.api.reactions() : []
+                let cosplayPosts = await cosplay
                 guard !Task.isCancelled else { return }
+                self.cosplayPosts = cosplayPosts
                 self.profile = profile
                 self.stats = stats
                 self.relations = follows
@@ -119,7 +142,7 @@ final class ProfilePage: CityPage {
         body.clear()
         let name = Theme.label(profile.displayName, size: 25, display: true)
         let bio = Theme.label(profile.bio.isEmpty && own ? "Add a bio in Settings." : profile.bio, color: Theme.secondary)
-        let identity = Theme.stack([MemberAvatar.view(profile.avatar, size: 70), Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
+        let identity = Theme.stack([MemberAvatar.view(profile.avatar, size: 70, memberID: profile.id), Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
         identity.alignment = .center
         let statsRow = Theme.stack([
             stat(stats.followers, title: "Followers"),
@@ -149,8 +172,11 @@ final class ProfilePage: CityPage {
         } else {
             renderRelationships(profile)
             body.addArrangedSubview(Theme.label("Works", size: 22, display: true))
-            if works.isEmpty { body.addArrangedSubview(Theme.empty("No public works", "Approved works appear here.")) }
+            if works.isEmpty && cosplayPosts?.isEmpty == true {
+                body.addArrangedSubview(Theme.empty("No public works", "Approved works appear here."))
+            }
             for work in works { body.addArrangedSubview(workCard(work)) }
+            addCosplayPosts(to: body)
         }
     }
 
@@ -169,8 +195,11 @@ final class ProfilePage: CityPage {
                 guard let self else { return }
                 self.push(SubmitWorkPage(api: self.api))
             })
-            if works.isEmpty { content.addArrangedSubview(Theme.empty("No works", "Submitted videos and their review status appear here.")) }
+            if works.isEmpty && cosplayPosts?.isEmpty == true {
+                content.addArrangedSubview(Theme.empty("No works", "Submitted works and their review status appear here."))
+            }
             for work in works { content.addArrangedSubview(workCard(work)) }
+            addCosplayPosts(to: content)
             return
         }
         let kind = scope == "Liked" ? "like" : "save"
@@ -194,6 +223,19 @@ final class ProfilePage: CityPage {
             row.distribution = .fillEqually
             if columns == 2 && cards.count == 1 { row.addArrangedSubview(UIView()) }
             content.addArrangedSubview(row)
+        }
+    }
+
+    private func addCosplayPosts(to stack: UIStackView) {
+        guard let cosplayPosts else {
+            stack.addArrangedSubview(Theme.label("Cosplay posts could not be loaded.", color: Theme.secondary))
+            return
+        }
+        for post in cosplayPosts {
+            stack.addArrangedSubview(CosplayPostCard.make(post, api: api, open: { [weak self] in
+                guard let self else { return }
+                self.push(CosplayPostPage(post: post, api: self.api))
+            }))
         }
     }
 
@@ -353,6 +395,9 @@ final class EditProfilePage: CityPage {
         if let credit = MemberAvatar.credit {
             body.addArrangedSubview(Theme.button("Photo: Oliver Ayala · CC BY 2.0") { [weak self] in self?.open(credit) })
         }
+        if let credit = MemberAvatar.fanCredit {
+            body.addArrangedSubview(Theme.button("Photo: Rose Abrams · CC BY 4.0") { [weak self] in self?.open(credit) })
+        }
         body.addArrangedSubview(name)
         body.addArrangedSubview(bio)
         body.addArrangedSubview(Theme.card([privacy]))
@@ -390,11 +435,11 @@ final class EditProfilePage: CityPage {
     private func renderAvatar() {
         preview.clear()
         preview.alignment = .center
-        preview.addArrangedSubview(MemberAvatar.view(avatar, size: 64))
+        preview.addArrangedSubview(MemberAvatar.view(avatar, size: 64, memberID: memberID))
         preview.addArrangedSubview(Theme.button("Choose avatar") { [weak self] in
             guard let self else { return }
             var choices: [(String, UIAlertAction.Style, () -> Void)] = [
-                ("City badge", .default, { [weak self] in self?.avatar = nil; self?.renderAvatar() })
+                ("Community portrait", .default, { [weak self] in self?.avatar = nil; self?.renderAvatar() })
             ]
             choices.append(contentsOf: MemberAvatar.choices.map { choice in
                 (choice.name, .default, { [weak self] in self?.avatar = choice.id; self?.renderAvatar() })
@@ -474,6 +519,7 @@ final class WalletPage: CityPage {
     private let refresh = UIRefreshControl()
     private var offers: [WalletOffer] = []
     private var products: [String: Product] = [:]
+    private var diamondImage: UIImage?
     private var catalogRequest: Task<Void, Never>?
     private var catalogTimeout: Task<Void, Never>?
     private var buying = false
@@ -493,7 +539,9 @@ final class WalletPage: CityPage {
     override func viewDidLoad() {
         super.viewDidLoad()
         balance.accessibilityIdentifier = "wallet.balance"
-        body.addArrangedSubview(Theme.card([Theme.label("Diamond balance", color: Theme.secondary), balance]))
+        let balanceRow = Theme.stack([diamondArtwork(size: 58), balance], spacing: 10, axis: .horizontal)
+        balanceRow.alignment = .center
+        body.addArrangedSubview(Theme.card([Theme.label("Diamond balance", color: Theme.secondary), balanceRow]))
         body.addArrangedSubview(Theme.label("Diamond packs", size: 24, display: true))
         body.addArrangedSubview(offerStatus)
         body.addArrangedSubview(offerGrid)
@@ -508,6 +556,18 @@ final class WalletPage: CityPage {
                                                name: UIContentSizeCategory.didChangeNotification, object: nil)
         updateLedger()
         loadOffers()
+        Task { [weak self] in
+            guard let art = await Artwork.image("diamond"), let self else { return }
+            self.diamondImage = art.scaled(to: 52)
+            self.renderOffers()
+        }
+    }
+
+    private func diamondArtwork(size: CGFloat) -> UIView {
+        let icon = Theme.artwork("diamond", mode: .scaleAspectFit)
+        icon.widthAnchor.constraint(equalToConstant: size).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: size).isActive = true
+        return icon
     }
 
     @objc private func updateLedger() {
@@ -517,10 +577,32 @@ final class WalletPage: CityPage {
             balance.text = ledger.balance.formatted()
             if ledger.purchases.isEmpty { history.addArrangedSubview(Theme.empty("No purchases yet", "Completed purchases appear here.")) }
             for purchase in ledger.purchases {
-                history.addArrangedSubview(Theme.card([
-                    Theme.label("+\(purchase.diamonds.formatted()) diamonds", color: Theme.mint, display: true),
-                    Theme.label(purchase.date.formatted(date: .abbreviated, time: .shortened), color: Theme.secondary)
-                ]))
+                let row = Theme.stack([
+                    diamondArtwork(size: 40),
+                    Theme.stack([
+                        Theme.label("+\(purchase.diamonds.formatted()) diamonds", color: Theme.mint, display: true),
+                        Theme.label(purchase.date.formatted(date: .abbreviated, time: .shortened), color: Theme.secondary)
+                    ], spacing: 4)
+                ], spacing: 8, axis: .horizontal)
+                row.alignment = .center
+                history.addArrangedSubview(Theme.card([row]))
+            }
+            let unlocks = (ledger.districtUnlocks ?? [:]).sorted { $0.value.date > $1.value.date }
+            if !unlocks.isEmpty {
+                history.addArrangedSubview(Theme.label("District unlocks", size: 22, display: true))
+                for (id, unlock) in unlocks {
+                    guard let district = CityDistrict(rawValue: id) else { continue }
+                    let row = Theme.stack([
+                        diamondArtwork(size: 40),
+                        Theme.stack([
+                            Theme.label(district.name, size: 17, display: true),
+                            Theme.label("−\(unlock.diamonds.formatted()) diamonds", color: Theme.gold),
+                            Theme.label(unlock.date.formatted(date: .abbreviated, time: .shortened), color: Theme.secondary)
+                        ], spacing: 4)
+                    ], spacing: 8, axis: .horizontal)
+                    row.alignment = .center
+                    history.addArrangedSubview(Theme.card([row]))
+                }
             }
         } catch { balance.text = "Unavailable"; showStatus(error.localizedDescription) }
     }
@@ -610,6 +692,9 @@ final class WalletPage: CityPage {
         var config = UIButton.Configuration.filled()
         config.attributedTitle = AttributedString(quantity, attributes: titleAttributes)
         config.attributedSubtitle = AttributedString(price, attributes: priceAttributes)
+        config.image = diamondImage
+        config.imagePlacement = .top
+        config.imagePadding = 2
         config.baseForegroundColor = Theme.paper
         config.baseBackgroundColor = Theme.panel
         config.background.strokeColor = Theme.line

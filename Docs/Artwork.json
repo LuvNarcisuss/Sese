@@ -273,5 +273,31 @@
     "source_sha256": "b6e40e5cfa99e94d174bb5fa557d21556cf2cde9aa741053f91e818ba0c7418d",
     "storage_path": "editorial/sese-media-v1/consent-checked.png",
     "sha256": "0e66958410c15943bed3c0b378dc218099aac5d2158bbb2585cb6a8af605be8c"
+  },
+  "diamond": {
+    "generator": "ImageGen",
+    "subject": "A single brilliant-cut diamond with mint and violet facets, gold bevels, and a transparent square canvas.",
+    "palette": "mint, violet, warm gold",
+    "source": "exec-862a11c5-918a-4472-ab79-bc8e2d0c1b28.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "82da9ca5d333c894e75f630f40ed0ed8b1e2b122a258377365905467110609da",
+    "storage_path": "editorial/exploration/34acd192-a548-49e8-a9ff-8fa39b51e916/diamond.png",
+    "sha256": "cd1c2d7fcc50709a284e4bc1add7bf9f2583e33ed05859616c0d73602b6294a7"
+  },
+  "city-map": {
+    "generator": "ImageGen",
+    "subject": "Aerial four-district city map in a 4:3 composition.",
+    "palette": "violet, mint, amber, snow blue",
+    "source": "exec-38567cf8-6a12-4eb5-9980-642348270af0.png",
+    "source_dimensions": [
+      1448,
+      1086
+    ],
+    "source_sha256": "9ea658be4934d5601d369d154f7a1e07105de3d7b5780c7d442df1e2d919c75b",
+    "storage_path": "editorial/exploration/6815e1a4-202e-48c4-9468-23c68d6151c5/city-map.jpg",
+    "sha256": "bb2cf9a126ba1fed4ed41769023031cc1020519f63f9a84db2a7e3b1f6a0d17e"
   }
 }

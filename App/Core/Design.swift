@@ -63,19 +63,48 @@ enum Theme {
     }
 
     static func icon(_ name: String, label: String, action: @escaping () -> Void) -> UIButton {
-        let button = UIButton(type: .custom)
-        button.setTitle(label, for: .normal)
-        button.titleLabel?.font = font(13, display: true)
+        let button = iconTarget(label, action: action)
         Task { [weak button] in
-            guard let image = await Artwork.image(name), let button else { return }
-            button.setTitle(nil, for: .normal)
-            button.setImage(image.scaled(to: 29), for: .normal)
+            let image = await Artwork.image(name)
+            guard let button else { return }
+            if let image {
+                button.setImage(image.scaled(to: 36), for: .normal)
+            } else {
+                button.setTitle(label, for: .normal)
+                button.titleLabel?.font = font(12, display: true)
+                button.titleLabel?.numberOfLines = 2
+            }
         }
-        button.backgroundColor = panel
-        button.layer.cornerRadius = 14
+        return button
+    }
+
+    static func textAction(_ text: String, action: @escaping () -> Void) -> UIButton {
+        var config = UIButton.Configuration.plain()
+        var attributes = AttributeContainer()
+        attributes.font = font(17, display: true)
+        config.attributedTitle = AttributedString(text, attributes: attributes)
+        config.baseForegroundColor = paper
+        config.contentInsets = .zero
+        let button = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
+        button.contentHorizontalAlignment = .leading
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        return button
+    }
+
+    static func moreIcon(label: String, action: @escaping () -> Void) -> UIButton {
+        let button = iconTarget(label, action: action)
+        button.setTitle("…", for: .normal)
+        button.titleLabel?.font = font(36, display: true)
+        return button
+    }
+
+    private static func iconTarget(_ label: String, action: @escaping () -> Void) -> UIButton {
+        let button = UIButton(type: .custom)
+        button.setTitleColor(paper, for: .normal)
+        button.setTitleColor(secondary, for: .highlighted)
         button.accessibilityLabel = label
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        button.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 48).isActive = true
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         return button
     }
@@ -161,9 +190,16 @@ enum Artwork {
     }()
 
     static let expoPortrait = storage?.appendingPathComponent("944f77db-dbc1-4293-976a-e6bc0dc71f39/expo-duo.jpg")
+    static let fanPortrait = storage?.appendingPathComponent("sese-media-v1/fan-duo.jpg")
 
     static func image(_ name: String) async -> UIImage? {
-        await image(at: storage?.appendingPathComponent("sese-media-v1/\(name).png"))
+        let object: String
+        switch name {
+        case "diamond": object = "exploration/34acd192-a548-49e8-a9ff-8fa39b51e916/diamond.png"
+        case "city-map": object = "exploration/6815e1a4-202e-48c4-9468-23c68d6151c5/city-map.jpg"
+        default: object = "sese-media-v1/\(name).png"
+        }
+        return await image(at: storage?.appendingPathComponent(object))
     }
 
     static func image(at url: URL?) async -> UIImage? {
@@ -237,6 +273,9 @@ class CityPage: UIViewController {
                 self?.navigationController?.popViewController(animated: true)
             })
         }
+        title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        actions.setContentHuggingPriority(.required, for: .horizontal)
+        actions.setContentCompressionResistancePriority(.required, for: .horizontal)
         header.addArrangedSubview(title)
         header.addArrangedSubview(actions)
         status.isHidden = true

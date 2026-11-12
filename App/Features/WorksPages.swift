@@ -31,11 +31,14 @@ final class CommunityWorksPage: CityPage {
                     list.addArrangedSubview(Theme.empty("No community videos yet", "Approved videos from members appear here."))
                 }
                 for work in works {
-                    let identity = Theme.button(work.author?.displayName ?? "View member") { [weak self] in
+                    let openProfile: () -> Void = { [weak self] in
                         guard let self else { return }
                         self.push(ProfilePage(memberID: work.ownerId, api: self.api))
                     }
-                    let author = Theme.stack([MemberAvatar.view(work.author?.avatar, size: 38), identity], spacing: 8, axis: .horizontal)
+                    let name = work.author?.displayName ?? "City Resident"
+                    let avatar = MemberAvatar.button(work.author?.avatar, size: 44, label: "Open \(name)’s profile",
+                                                     memberID: work.ownerId, action: openProfile)
+                    let author = Theme.stack([avatar, Theme.textAction(name, action: openProfile)], spacing: 8, axis: .horizontal)
                     author.alignment = .center
                     list.addArrangedSubview(Theme.card([
                         Theme.label(work.title, size: 23, display: true),

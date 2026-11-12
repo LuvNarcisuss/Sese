@@ -3,9 +3,11 @@ import PhotosUI
 
 final class InboxPage: CityPage {
     private let list = Theme.stack()
-    private let searchField = Theme.field("Search conversations")
+    private let searchField = Theme.field("Search chats")
     private var rows: [InboxItem] = []
-    private var archived = false
+    private enum Scope { case friends, conversations, archived }
+    private var scope = Scope.friends
+    private var friends: [ChatFriend] = []
     private var loaded = false
     private var loadTask: Task<Void, Never>?
     private var liveTask: Task<Void, Never>?
@@ -27,14 +29,21 @@ final class InboxPage: CityPage {
             }
         })
         actions.addArrangedSubview(Theme.icon("filter", label: "Conversation filters") { [weak self] in
-            self?.menu("Conversations", choices: [
-                ("Inbox", .default, { [weak self] in self?.archived = false; self?.render() }),
-                ("Archived", .default, { [weak self] in self?.archived = true; self?.render() })
+            self?.menu("Chats", choices: [
+                ("Friends", .default, { [weak self] in self?.select(.friends) }),
+                ("Conversations", .default, { [weak self] in self?.select(.conversations) }),
+                ("Archived", .default, { [weak self] in self?.select(.archived) })
             ])
         })
+        actions.addArrangedSubview(Theme.icon("profile", label: "Find friends") { [weak self] in self?.browse() })
         searchField.isHidden = true
         search(searchField, into: body) { [weak self] _ in self?.render() }
         body.addArrangedSubview(list)
+        let refresh = UIRefreshControl()
+        refresh.tintColor = Theme.mint
+        refresh.addAction(UIAction { [weak self] _ in self?.reload() }, for: .valueChanged)
+        scroll.alwaysBounceVertical = true
+        scroll.refreshControl = refresh
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -50,27 +59,42 @@ final class InboxPage: CityPage {
         super.viewWillDisappear(animated)
         liveTask?.cancel()
         loadTask?.cancel()
+        scroll.refreshControl?.endRefreshing()
     }
 
     private func browse() { push(MembersPage(api: api)) }
 
+    private func select(_ scope: Scope) {
+        self.scope = scope
+        searchField.resignFirstResponder()
+        searchField.text = nil
+        searchField.isHidden = true
+        render()
+    }
+
     private func reload() {
         loadTask?.cancel()
-        if !loaded { showStatus("Loading conversations…") }
+        if !loaded { showStatus("Loading chats…") }
         loadTask = Task { [weak self] in
             guard let self else { return }
+            defer { if !Task.isCancelled { self.scroll.refreshControl?.endRefreshing() } }
             do {
-                let inbox = try await self.api.inbox()
+                async let inbox = self.api.inbox()
+                async let contacts = self.api.chatFriends()
+                let (rows, friends) = try await (inbox, contacts)
                 guard !Task.isCancelled else { return }
-                self.rows = inbox
+                self.rows = rows
+                self.friends = friends
                 self.loaded = true
                 self.showStatus(nil)
                 self.render()
             } catch {
                 guard !Task.isCancelled else { return }
-                self.showStatus("Conversations could not be refreshed.")
-                self.list.clear()
-                self.list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                self.showStatus("Chats could not be refreshed.")
+                if !self.loaded {
+                    self.list.clear()
+                    self.list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+                }
             }
         }
     }
@@ -79,32 +103,88 @@ final class InboxPage: CityPage {
         guard loaded else { return }
         list.clear()
         let query = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let matches = rows.filter { $0.archived == archived &&
-            (query.isEmpty || $0.displayName.localizedCaseInsensitiveContains(query) || $0.body.localizedCaseInsensitiveContains(query)) }
-        if matches.isEmpty {
-            if !query.isEmpty { list.addArrangedSubview(Theme.empty("No matches", "Try another name or message.")) }
-            else if archived { list.addArrangedSubview(Theme.empty("No archived chats", "Conversations you archive appear here.")) }
-            else {
-                let empty = Theme.empty("Start a conversation", "Find a resident and follow each other to start chatting.")
-                empty.addArrangedSubview(Theme.button("Find members", icon: "chats", accent: true) { [weak self] in self?.browse() })
-                list.addArrangedSubview(empty)
+        switch scope {
+        case .friends:
+            if friends.isEmpty {
+                showInvitation()
+                return
             }
-            return
+            let recent = Dictionary(uniqueKeysWithValues: rows.filter { !$0.archived }.map { ($0.peerId, $0) })
+            let matched = friends.compactMap { friend -> (ChatFriend, InboxItem?)? in
+                let row = recent[friend.id]
+                let name = friend.profile?.displayName ?? row?.displayName ?? "City Resident"
+                guard query.isEmpty || name.localizedCaseInsensitiveContains(query) ||
+                    row?.body.localizedCaseInsensitiveContains(query) == true else { return nil }
+                return (friend, row)
+            }.sorted { left, right in
+                if (left.1?.pinned ?? false) != (right.1?.pinned ?? false) { return left.1?.pinned == true }
+                let leftName = left.0.profile?.displayName ?? left.1?.displayName ?? ""
+                let rightName = right.0.profile?.displayName ?? right.1?.displayName ?? ""
+                return leftName.localizedStandardCompare(rightName) == .orderedAscending
+            }
+            if matched.isEmpty {
+                list.addArrangedSubview(Theme.empty("No matching friends", "Try a different name."))
+            }
+            for (friend, row) in matched {
+                list.addArrangedSubview(chatRow(peer: friend.id, name: friend.profile?.displayName ?? row?.displayName ?? "City Resident",
+                                                avatarID: friend.profile?.avatar ?? row?.avatar, conversation: row))
+            }
+        case .conversations, .archived:
+            let archive = scope == .archived
+            let matches = rows.filter { $0.archived == archive &&
+                (query.isEmpty || $0.displayName.localizedCaseInsensitiveContains(query) || $0.body.localizedCaseInsensitiveContains(query)) }
+            if matches.isEmpty {
+                if !query.isEmpty { list.addArrangedSubview(Theme.empty("No matching conversations", "Try another name or message.")) }
+                else if archive { list.addArrangedSubview(Theme.empty("No archived chats", "Conversations you archive appear here.")) }
+                else { list.addArrangedSubview(Theme.empty("No conversations", "Messages you send or receive appear here.")) }
+            }
+            for row in matches {
+                list.addArrangedSubview(chatRow(peer: row.peerId, name: row.displayName, avatarID: row.avatar, conversation: row))
+            }
         }
-        list.addArrangedSubview(Theme.button("Find members", icon: "search") { [weak self] in self?.browse() })
-        for row in matches {
-            let details = [row.pinned ? "Pinned" : nil, row.muted ? "Muted" : nil, row.unread ? "Unread" : nil].compactMap { $0 }
-            let name = Theme.button(row.displayName, icon: "chats") { [weak self] in
-                guard let self else { return }
-                self.push(ThreadPage(peerID: row.peerId, peerName: row.displayName, api: self.api))
-            }
-            let preview = Theme.label(row.body, color: Theme.secondary)
+    }
+
+    private func showInvitation() {
+        let heading = Theme.label("Good conversations start with hello", size: 32, display: true)
+        heading.accessibilityTraits.insert(.header)
+        list.addArrangedSubview(heading)
+        list.addArrangedSubview(Theme.label("Meet the people who make this city feel like home.", color: Theme.secondary))
+        let artwork = Theme.artwork("chats", mode: .scaleAspectFit)
+        artwork.heightAnchor.constraint(equalToConstant: 84).isActive = true
+        list.addArrangedSubview(Theme.card([
+            artwork,
+            Theme.label("Find your first friend", size: 24, display: true),
+            Theme.label("Follow each other to start a private chat.", color: Theme.secondary),
+            Theme.button("Find friends", accent: true) { [weak self] in self?.browse() }
+        ]))
+    }
+
+    private func chatRow(peer: UUID, name: String, avatarID: String?, conversation: InboxItem?) -> UIView {
+        let avatar = MemberAvatar.button(avatarID, size: 48, label: "Open \(name)’s profile", memberID: peer) { [weak self] in
+            guard let self else { return }
+            self.push(ProfilePage(memberID: peer, api: self.api))
+        }
+        let chat = Theme.textAction(name) { [weak self] in
+            guard let self else { return }
+            self.push(ThreadPage(peerID: peer, peerName: name, api: self.api))
+        }
+        let header = Theme.stack([avatar, chat], spacing: 8, axis: .horizontal)
+        header.alignment = .center
+        if let conversation {
+            header.addArrangedSubview(Theme.moreIcon(label: "Conversation options") { [weak self] in self?.options(conversation) })
+        }
+        let card = Theme.card([header])
+        if let conversation {
+            let preview = Theme.label(conversation.body, color: Theme.secondary)
             preview.numberOfLines = 2
-            let card = Theme.card([name, preview])
-            if !details.isEmpty { card.addArrangedSubview(Theme.label(details.joined(separator: " · "), size: 14, color: Theme.mint)) }
-            card.addArrangedSubview(Theme.button("Options") { [weak self] in self?.options(row) })
-            list.addArrangedSubview(card)
+            card.addArrangedSubview(preview)
+            let details = [conversation.pinned ? "Pinned" : nil, conversation.muted ? "Muted" : nil,
+                           conversation.unread ? "Unread" : nil].compactMap { $0 }
+            if !details.isEmpty {
+                card.addArrangedSubview(Theme.label(details.joined(separator: " · "), size: 14, color: Theme.mint))
+            }
         }
+        return card
     }
 
     private func options(_ row: InboxItem) {
@@ -184,11 +264,13 @@ final class MembersPage: CityPage {
             list.addArrangedSubview(Theme.empty("No members to show", "Profiles appear here when members choose to be discoverable."))
         }
         for person in matches {
-            let avatar = MemberAvatar.view(person.avatar, size: 50)
-            let open = Theme.button(person.displayName) { [weak self] in
+            let openProfile: () -> Void = { [weak self] in
                 guard let self else { return }
                 self.push(ProfilePage(memberID: person.id, api: self.api))
             }
+            let avatar = MemberAvatar.button(person.avatar, size: 50, label: "Open \(person.displayName)’s profile",
+                                             memberID: person.id, action: openProfile)
+            let open = Theme.textAction(person.displayName, action: openProfile)
             let header = Theme.stack([avatar, open], axis: .horizontal)
             header.alignment = .center
             list.addArrangedSubview(Theme.card([header, Theme.label(person.bio, color: Theme.secondary)]))

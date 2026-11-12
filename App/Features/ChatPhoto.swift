@@ -26,13 +26,13 @@ enum ChatPhoto {
         }
     }
 
-    static func decode(_ data: Data) -> CGImage? {
+    static func decode(_ data: Data, maximumPixelSize: Int = 1600) -> CGImage? {
         guard data.count <= maximumBytes, let source = CGImageSourceCreateWithData(data as CFData, nil),
               let type = CGImageSourceGetType(source), type as String == UTType.jpeg.identifier else { return nil }
-        return thumbnail(from: source)
+        return thumbnail(from: source, maximumPixelSize: maximumPixelSize)
     }
 
-    private static func thumbnail(from source: CGImageSource) -> CGImage? {
+    private static func thumbnail(from source: CGImageSource, maximumPixelSize: Int = 1600) -> CGImage? {
         guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
               let width = properties[kCGImagePropertyPixelWidth as String] as? Int,
               let height = properties[kCGImagePropertyPixelHeight as String] as? Int,
@@ -40,7 +40,7 @@ enum ChatPhoto {
         let options: [String: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways as String: true,
             kCGImageSourceCreateThumbnailWithTransform as String: true,
-            kCGImageSourceThumbnailMaxPixelSize as String: 1600
+            kCGImageSourceThumbnailMaxPixelSize as String: maximumPixelSize
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }

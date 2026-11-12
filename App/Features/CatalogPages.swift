@@ -22,7 +22,7 @@ enum CatalogSection {
     var filters: [String] {
         switch self {
         case .districts: return ["All", "Saved"]
-        case .cosplay: return ["All", "Cosplay Look", "Cosplay Video"]
+        case .cosplay: return ["All", "Cosplay Look", "Cosplay Video", "Community", "My posts"]
         }
     }
 
@@ -37,6 +37,12 @@ enum CatalogSection {
 final class CatalogPage: CityPage {
     private let section: CatalogSection
     private let grid = Theme.stack()
+    private let cosplayGrid = Theme.stack()
+    private var publicPosts: [CosplayPost] = []
+    private var ownPosts: [CosplayPost] = []
+    private var cosplayLoaded = false
+    private var cosplayFailure = false
+    private var cosplayTask: Task<Void, Never>?
     private let searchField = Theme.field("Search")
     private var items: [CatalogItem] = []
     private var saved: Set<String> = []
@@ -67,12 +73,99 @@ final class CatalogPage: CityPage {
         body.addArrangedSubview(Theme.label(section.subtitle, color: Theme.secondary))
         searchField.isHidden = true
         search(searchField, into: body) { [weak self] _ in self?.render() }
+        body.addArrangedSubview(cosplayGrid)
         body.addArrangedSubview(grid)
+        if section == .cosplay {
+            actions.addArrangedSubview(Theme.icon("shorts", label: "Post cosplay") { [weak self] in self?.composeCosplay() })
+            let refresh = UIRefreshControl()
+            refresh.tintColor = Theme.mint
+            refresh.addAction(UIAction { [weak self] _ in
+                self?.reload()
+                self?.reloadCosplay()
+            }, for: .valueChanged)
+            scroll.alwaysBounceVertical = true
+            scroll.refreshControl = refresh
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reload()
+        if section == .cosplay { reloadCosplay() }
+    }
+
+    private func composeCosplay() {
+        guard cosplayLoaded else {
+            alert("Posting is unavailable right now. Pull down or try again later.")
+            return
+        }
+        push(ComposeCosplayPage(api: api) { [weak self] in self?.scope = "My posts" })
+    }
+
+    private func reloadCosplay() {
+        cosplayTask?.cancel()
+        guard let member = api.memberID else { return }
+        cosplayFailure = false
+        renderCosplay()
+        cosplayTask = Task { [weak self, api] in
+            defer { if !Task.isCancelled { self?.scroll.refreshControl?.endRefreshing() } }
+            do {
+                async let community = api.cosplayPosts()
+                async let mine = api.cosplayPosts(owner: member)
+                let (publicPosts, ownPosts) = try await (community, mine)
+                guard let self, !Task.isCancelled, api.memberID == member else { return }
+                self.publicPosts = publicPosts
+                self.ownPosts = ownPosts
+                self.cosplayLoaded = true
+                self.cosplayFailure = false
+                self.renderCosplay()
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                self.cosplayFailure = true
+                self.renderCosplay()
+            }
+        }
+    }
+
+    private func renderCosplay() {
+        cosplayGrid.clear()
+        let dedicated = scope == "Community" || scope == "My posts"
+        grid.isHidden = dedicated
+        guard section == .cosplay else { return }
+        let query = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let posts = scope == "My posts" ? ownPosts : publicPosts
+        let matches = posts.filter { post in
+            let correctKind = (scope != "Cosplay Look" || post.mediaKind == .photo) &&
+                (scope != "Cosplay Video" || post.mediaKind == .video)
+            return correctKind && (query.isEmpty ||
+                "\(post.title) \(post.caption) \(post.author?.displayName ?? "")".localizedCaseInsensitiveContains(query))
+        }
+        if cosplayFailure {
+            cosplayGrid.addArrangedSubview(Theme.label("Community posts could not be refreshed.", color: Theme.secondary))
+            cosplayGrid.addArrangedSubview(Theme.textAction("Try again") { [weak self] in self?.reloadCosplay() })
+        }
+        if dedicated && !cosplayLoaded && !cosplayFailure {
+            cosplayGrid.addArrangedSubview(Theme.label("Loading posts…", color: Theme.secondary))
+        }
+        if dedicated && cosplayLoaded && matches.isEmpty {
+            let message = query.isEmpty ? "No posts to show yet." : "No posts match your search."
+            let title = scope == "My posts" ? "My posts" : "Community"
+            cosplayGrid.addArrangedSubview(Theme.empty(title, message))
+        }
+        if !matches.isEmpty {
+            cosplayGrid.addArrangedSubview(Theme.label(scope == "My posts" ? "My posts" : "Community", size: 23, display: true))
+        }
+        for post in matches {
+            let openAuthor: ((UUID) -> Void)? = scope == "My posts" ? nil : { [weak self] author in
+                guard let self else { return }
+                self.push(ProfilePage(memberID: author, api: self.api))
+            }
+            let card = CosplayPostCard.make(post, api: api, open: { [weak self] in
+                guard let self else { return }
+                self.push(CosplayPostPage(post: post, api: self.api))
+            }, openAuthor: openAuthor)
+            cosplayGrid.addArrangedSubview(card)
+        }
     }
 
     private func reload() {
@@ -109,7 +202,8 @@ final class CatalogPage: CityPage {
     }
 
     private func render() {
-        guard loaded else { return }
+        renderCosplay()
+        guard loaded, !grid.isHidden else { return }
         let query = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let filtered = items.filter { item in
             let matchesScope = scope == "All" || (scope == "Saved" ? saved.contains(item.id) : item.kind == scope)
@@ -142,7 +236,7 @@ final class CatalogPage: CityPage {
             guard let self else { return }
             self.push(CatalogDetail(items: items, index: index, api: self.api))
         }
-        let open = Theme.button(item.title, action: openItem)
+        let open = Theme.textAction(item.title, action: openItem)
         let target = UIButton(type: .custom)
         target.accessibilityLabel = "Open \(item.title)"
         target.addAction(UIAction { _ in openItem() }, for: .touchUpInside)
@@ -153,7 +247,7 @@ final class CatalogPage: CityPage {
             target.topAnchor.constraint(equalTo: cover.topAnchor), target.bottomAnchor.constraint(equalTo: cover.bottomAnchor),
             target.leadingAnchor.constraint(equalTo: cover.leadingAnchor), target.trailingAnchor.constraint(equalTo: cover.trailingAnchor)
         ])
-        let credit = Theme.button(item.credit) { [weak self] in self?.open(item.sourceUrl) }
+        let credit = Theme.textAction(item.credit) { [weak self] in self?.open(item.sourceUrl) }
         credit.accessibilityLabel = "Source: \(item.credit)"
         return Theme.card([cover, Theme.label(item.kind, size: 13, color: Theme.mint, display: true), open, credit], spacing: 6)
     }
@@ -339,10 +433,15 @@ final class CommentsPage: CityPage {
                 for row in rows {
                     let name: UIView
                     if let author = row.author {
-                        name = Theme.button(author.displayName) { [weak self] in
+                        let openProfile: () -> Void = { [weak self] in
                             guard let self else { return }
                             self.push(ProfilePage(memberID: author.id, api: self.api))
                         }
+                        let avatar = MemberAvatar.button(author.avatar, size: 44, label: "Open \(author.displayName)’s profile",
+                                                         memberID: author.id, action: openProfile)
+                        let identity = Theme.stack([avatar, Theme.textAction(author.displayName, action: openProfile)], axis: .horizontal)
+                        identity.alignment = .center
+                        name = identity
                     } else {
                         name = Theme.label("City Resident", display: true)
                     }

@@ -58,6 +58,33 @@ struct MemberWork: Decodable, Identifiable {
     let author: Member?
 }
 
+enum CosplayMediaKind: String, Decodable {
+    case photo, video
+
+    var title: String { self == .photo ? "Photo" : "Video" }
+    var fileExtension: String { self == .photo ? "jpg" : "mp4" }
+    var mimeType: String { self == .photo ? "image/jpeg" : "video/mp4" }
+}
+
+struct CosplayPost: Decodable, Identifiable {
+    let id: UUID
+    let ownerId: UUID
+    let title: String
+    let caption: String
+    let mediaKind: CosplayMediaKind
+    let mediaPath: String
+    let status: String
+    let author: Member?
+
+    var statusTitle: String {
+        switch status {
+        case "pending": return "Pending review"
+        case "removed": return "Removal pending"
+        default: return status.capitalized
+        }
+    }
+}
+
 struct Member: Decodable, Identifiable {
     let id: UUID
     let displayName: String
@@ -102,6 +129,11 @@ struct Message: Decodable {
     let photoPath: String?
 }
 
+struct ChatFriend: Identifiable {
+    let id: UUID
+    let profile: Member?
+}
+
 struct InboxItem: Decodable {
     let peerId: UUID
     let displayName: String
@@ -121,6 +153,8 @@ final class CommunityAPI {
     let agreements: AgreementSet?
     private(set) var memberID: UUID?
     private static let chatPhotoBucket = "chat-photos"
+    private static let cosplayBucket = "cosplay-media"
+    nonisolated static let maximumCosplayMediaBytes = 6_291_456
 
     init() throws {
         let configuration = try Resources.decode(BackendConfiguration.self, "Backend.json")
@@ -184,20 +218,97 @@ final class CommunityAPI {
     }
 
     func deleteAccount() async throws {
-        var lastBatch: [String] = []
-        while true {
-            let paths: [String] = try await read("rpc/begin_account_photo_cleanup", method: "POST", body: [:])
-            if paths.isEmpty { break }
-            guard paths != lastBatch else {
-                throw CommunityError.invalidInput("Photo cleanup could not finish. Try deleting your account again.")
-            }
-            _ = try await client.storage.from(Self.chatPhotoBucket).remove(paths: paths)
-            lastBatch = paths
+        try await removeAccountMedia(rpc: "begin_account_photo_cleanup", bucket: Self.chatPhotoBucket)
+        do {
+            try await removeAccountMedia(rpc: "begin_account_cosplay_cleanup", bucket: Self.cosplayBucket)
+        } catch CommunityError.request(404) {
+            // The earlier backend has no Cosplay uploads to remove.
         }
         try await write("rpc/delete_my_account", method: "POST", body: [:])
         memberID = nil
         try? await client.auth.signOut(scope: .local)
         DeviceCredential.remove()
+    }
+
+    private func removeAccountMedia(rpc: String, bucket: String) async throws {
+        var lastBatch: [String] = []
+        while true {
+            let paths: [String] = try await read("rpc/\(rpc)", method: "POST", body: [:])
+            if paths.isEmpty { return }
+            guard paths != lastBatch else {
+                throw CommunityError.invalidInput("Media cleanup could not finish. Try deleting your account again.")
+            }
+            _ = try await client.storage.from(bucket).remove(paths: paths)
+            lastBatch = paths
+        }
+    }
+
+    func cosplayPosts(owner: UUID? = nil) async throws -> [CosplayPost] {
+        var filters = ["order": "created_at.desc,id.desc", "limit": "60",
+                       "select": "*,author:profiles!cosplay_posts_owner_id_fkey(*)"]
+        if let owner {
+            filters["owner_id"] = "eq.\(owner.uuidString)"
+        }
+        if owner == nil || owner != memberID {
+            filters["status"] = "eq.approved"
+        }
+        return try await read("cosplay_posts", query: filters)
+    }
+
+    func submitCosplay(id: UUID, title: String, caption: String, kind: CosplayMediaKind, bytes: Data) async throws {
+        guard let owner = memberID, (1...Self.maximumCosplayMediaBytes).contains(bytes.count) else {
+            throw CommunityError.invalidInput("Choose a photo or video within the upload limit.")
+        }
+        let path = Self.cosplayPath(owner: owner, id: id, kind: kind)
+        let storage = client.storage.from(Self.cosplayBucket)
+        do {
+            try await storage.upload(path, data: bytes, options: FileOptions(cacheControl: "0", contentType: kind.mimeType, upsert: false))
+        } catch {
+            let uploadError = error
+            guard let existing = try? await storage.download(path: path, cacheNonce: UUID().uuidString),
+                  existing == bytes else { throw uploadError }
+        }
+        guard memberID == owner else { throw CommunityError.unavailable }
+        try await write("rpc/submit_cosplay_post", method: "POST", body: [
+            "post_id": id.uuidString, "post_title": title, "post_caption": caption, "kind": kind.rawValue
+        ])
+    }
+
+    func cosplayMediaURL(_ post: CosplayPost) throws -> URL {
+        guard post.status != "removed",
+              post.mediaPath == Self.cosplayPath(owner: post.ownerId, id: post.id, kind: post.mediaKind) else {
+            throw CommunityError.unavailable
+        }
+        return try client.storage.from(Self.cosplayBucket).getPublicURL(path: post.mediaPath)
+    }
+
+    func cosplayMedia(_ post: CosplayPost) async throws -> Data {
+        let viewer = memberID
+        let url = try cosplayMediaURL(post)
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              http.url == url, http.mimeType == post.mediaKind.mimeType,
+              memberID == viewer, (1...Self.maximumCosplayMediaBytes).contains(data.count) else {
+            throw CommunityError.unavailable
+        }
+        return data
+    }
+
+    func removeCosplay(_ post: CosplayPost) async throws {
+        guard let owner = memberID, owner == post.ownerId,
+              post.mediaPath == Self.cosplayPath(owner: owner, id: post.id, kind: post.mediaKind) else {
+            throw CommunityError.unavailable
+        }
+        let payload = ["post_id": post.id.uuidString]
+        try await write("rpc/hide_cosplay_post", method: "POST", body: payload)
+        _ = try await client.storage.from(Self.cosplayBucket).remove(paths: [post.mediaPath])
+        guard memberID == owner else { throw CommunityError.unavailable }
+        try await write("rpc/finish_cosplay_post_removal", method: "POST", body: payload)
+    }
+
+    private static func cosplayPath(owner: UUID, id: UUID, kind: CosplayMediaKind) -> String {
+        "\(owner.uuidString.lowercased())/\(id.uuidString.lowercased()).\(kind.fileExtension)"
     }
 
     func catalog() async throws -> [CatalogItem] {
@@ -272,7 +383,19 @@ final class CommunityAPI {
         try await write("comments", method: "DELETE", query: ["id": "eq.\(id.uuidString)"])
     }
 
-    func follows() async throws -> [Follow] { try await read("follows", query: ["limit": "200"]) }
+    func follows() async throws -> [Follow] {
+        let pageSize = 200
+        var links: [Follow] = []
+        while true {
+            let page: [Follow] = try await read("follows", query: [
+                "order": "follower_id.asc,target_id.asc",
+                "limit": String(pageSize), "offset": String(links.count)
+            ])
+            links.append(contentsOf: page)
+            if page.count < pageSize { break }
+        }
+        return links
+    }
     func blocks() async throws -> [Block] { try await read("blocks", query: ["limit": "200"]) }
 
     func setRelationship(_ table: String, peer: UUID, enabled: Bool) async throws {
@@ -285,6 +408,21 @@ final class CommunityAPI {
 
     func report(_ target: [String: String], reason: String) async throws {
         try await write("reports", method: "POST", body: target.merging(["reason": reason]) { _, new in new })
+    }
+
+    func chatFriends() async throws -> [ChatFriend] {
+        guard let memberID else { throw CommunityError.unavailable }
+        let links = try await follows()
+        let following = Set(links.filter { $0.followerId == memberID }.map(\.targetId))
+        let followers = Set(links.filter { $0.targetId == memberID }.map(\.followerId))
+        let ids = following.intersection(followers).sorted { $0.uuidString < $1.uuidString }
+        var profiles: [UUID: Member] = [:]
+        for start in stride(from: 0, to: ids.count, by: 50) {
+            let batch = ids[start..<min(start + 50, ids.count)].map(\.uuidString).joined(separator: ",")
+            let members: [Member] = try await read("profiles", query: ["id": "in.(\(batch))"])
+            for member in members { profiles[member.id] = member }
+        }
+        return ids.map { ChatFriend(id: $0, profile: profiles[$0]) }
     }
 
     func inbox() async throws -> [InboxItem] { try await read("rpc/inbox", method: "POST", body: [:]) }

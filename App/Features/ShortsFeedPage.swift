@@ -20,6 +20,56 @@ private struct HostedShort {
     }
 }
 
+private struct ShortsPublisher {
+    let name: String
+    let portrait: String
+
+    init(_ item: CatalogItem) {
+        name = item.credit.components(separatedBy: " · ").first ?? item.credit
+        switch item.id {
+        case "fox-costume-in-motion": portrait = "expo-judy"
+        case "narcon-conga-line": portrait = "fan-duo"
+        case "costume-meetup-hug": portrait = "expo-nick"
+        default: portrait = "expo-duo"
+        }
+    }
+}
+
+private final class ShortsPublisherPage: CityPage {
+    private let short: HostedShort
+
+    init(short: HostedShort, api: CommunityAPI) {
+        self.short = short
+        super.init("Creator", api: api)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let item = short.item
+        let publisher = ShortsPublisher(item)
+        let identity = Theme.stack([
+            MemberAvatar.view(publisher.portrait, size: 72),
+            Theme.stack([
+                Theme.label(publisher.name, size: 26, display: true),
+                Theme.label("Editorial creator", size: 15, color: Theme.secondary)
+            ], spacing: 4)
+        ], spacing: 12, axis: .horizontal)
+        identity.alignment = .center
+        body.addArrangedSubview(Theme.card([identity, Theme.label(item.credit, size: 15, color: Theme.secondary)]))
+        let portraitCredit = publisher.portrait == "fan-duo" ? MemberAvatar.fanCredit : MemberAvatar.credit
+        if let portraitCredit {
+            body.addArrangedSubview(Theme.button("Cosplay portrait credit") { [weak self] in self?.open(portraitCredit) })
+        }
+        body.addArrangedSubview(Theme.label("Works", size: 22, display: true))
+        body.addArrangedSubview(Theme.button(item.title, icon: "shorts") { [weak self] in
+            self?.navigationController?.popViewController(animated: true)
+        })
+        body.addArrangedSubview(Theme.button("View original source") { [weak self] in self?.open(item.sourceUrl) })
+    }
+}
+
 private final class ShortsVideoGradient: UIView {
     override class var layerClass: AnyClass { CAGradientLayer.self }
 
@@ -46,6 +96,7 @@ private final class ShortsClipPage: UIViewController {
     var comments: (() -> Void)?
     var share: ((UIView) -> Void)?
     var options: (() -> Void)?
+    var openProfile: (() -> Void)?
     private var like: UIButton?
     private var save: UIButton?
 
@@ -61,16 +112,11 @@ private final class ShortsClipPage: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.ink
         view.accessibilityIdentifier = "shorts.clip.\(item.id)"
-        let avatar = Theme.artwork("profile")
-        avatar.backgroundColor = Theme.panel
-        avatar.layer.cornerRadius = 22
-        avatar.layer.borderColor = Theme.paper.withAlphaComponent(0.75).cgColor
-        avatar.layer.borderWidth = 1
-        avatar.clipsToBounds = true
-        avatar.widthAnchor.constraint(equalToConstant: 44).isActive = true
-        avatar.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        avatar.isAccessibilityElement = true
-        avatar.accessibilityLabel = "Editorial video"
+        let publisher = ShortsPublisher(item)
+        let avatar = MemberAvatar.button(publisher.portrait, size: 48, label: "Open \(publisher.name)’s creator profile") {
+            [weak self] in self?.openProfile?()
+        }
+        avatar.accessibilityIdentifier = "shorts.creator"
 
         let credit = Theme.label(item.credit, size: 15, display: true)
         credit.numberOfLines = 2
@@ -80,8 +126,7 @@ private final class ShortsClipPage: UIViewController {
         let caption = Theme.label(item.description, size: 14, color: Theme.secondary)
         caption.numberOfLines = 2
         let metadata = Theme.stack([credit, title, caption], spacing: 4)
-        let more = Theme.button("More") { [weak self] in self?.options?() }
-        more.accessibilityLabel = "Video options"
+        let more = Theme.moreIcon(label: "Video options") { [weak self] in self?.options?() }
 
         let like = Theme.icon("like", label: "Like") { [weak self] in self?.react?("like") }
         like.accessibilityIdentifier = "shorts.like"
@@ -97,9 +142,6 @@ private final class ShortsClipPage: UIViewController {
             guard let share else { return }
             self?.share?(share)
         }, for: .touchUpInside)
-        for button in [like, comments, save, share] {
-            button.layer.cornerRadius = 22
-        }
         let actions = Theme.stack([avatar, like, comments, save, share, more], spacing: 8)
         actions.alignment = .center
 
@@ -144,7 +186,11 @@ private final class ShortsClipPage: UIViewController {
     private func update(_ button: UIButton?, name: String, selectedName: String, enabled: Bool, busy: Bool) {
         button?.accessibilityLabel = enabled ? selectedName : name
         button?.isSelected = enabled
-        button?.backgroundColor = enabled ? Theme.mint.withAlphaComponent(0.25) : Theme.panel
+        button?.layer.shadowColor = Theme.mint.cgColor
+        button?.layer.shadowOffset = .zero
+        button?.layer.shadowRadius = 6
+        button?.layer.shadowOpacity = enabled ? 1 : 0
+        button?.accessibilityTraits = enabled ? [.button, .selected] : .button
         button?.isEnabled = !busy
     }
 }
@@ -332,6 +378,10 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         }
         page.share = { [weak self] button in self?.share(item, from: button) }
         page.options = { [weak self] in self?.showVideoOptions(item) }
+        page.openProfile = { [weak self] in
+            guard let self, !self.paging else { return }
+            self.navigationController?.pushViewController(ShortsPublisherPage(short: short, api: self.api), animated: true)
+        }
         page.renderReactions(reactions[item.id] ?? [], busy: pending[item.id] ?? [])
         return page
     }

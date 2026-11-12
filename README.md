@@ -8,13 +8,15 @@ A fresh build fetches and verifies the launcher icon from Sese's Supabase projec
 
 | Tab | Features |
 | --- | --- |
-| Shorts | The first tab opens a full-screen vertical feed of licensed costume and fan-culture clips, with creator credits, search, filters, likes, saves, comments, sharing, reporting, and access to member video submissions. |
-| Districts | Three illustrated district guides with search, details, and saved places. |
-| Cosplay | Real cosplay photographs and video sources, search, filters, and saved looks. |
-| Chats | Member discovery, mutual-follow text and photo messaging, Realtime updates, unread state, pin, mute, archive, and reporting. |
+| Shorts | The first tab opens a full-screen vertical feed of licensed costume and fan-culture clips, with photo avatars that open credited editorial creator pages, search, filters, likes, saves, comments, sharing, reporting, and access to member video submissions. |
+| Districts | Tap four districts on the city map. City Center starts open. Unlock Sahara Square, Tundratown, and Rainforest District with 30, 45, and 60 diamonds respectively, then explore their landmarks and existing guides. |
+| Cosplay | Browse editorial and approved member photos and videos. Submit a photo or a video from Photos, preview it, and track review status in My posts and Me → Works. |
+| Chats | Real mutual friends appear before their first message. An invitation appears when there are no friends. The filter opens Conversations and Archived for message history. Member discovery, text and photo messaging, Realtime updates, unread state, pin, mute, archive, and reporting are available. |
 | Me | Profile identity and relationship counts, saves, likes, works, wallet, and Settings. |
 
 Shorts plays licensed portrait MP4s from Sese's Supabase Storage. AVPlayer loops the visible clip behind the toolbar and translucent tab bar. A cover appears while playback loads, and a progress line tracks the clip. Tap the video to pause and tap Play to resume. The video options show the source and license. Existing publisher entries retain their catalog IDs and source links for saved items and Cosplay details.
+
+Cosplay media uses [migration 014](Backend/migrations/014_cosplay_posts.sql) and [migration 015](Backend/migrations/015_public_cosplay_media.sql) in production. Anyone with a media link can open the file as soon as it is uploaded. The gallery lists approved posts from eligible members. Uploading and removing files require the owner's account. Existing editorial content and link submissions remain available.
 
 ## Simulator acceptance
 
@@ -22,7 +24,7 @@ Use the exact simulator name `Sese UI Acceptance` (iPhone 17 Pro) and the `Sese`
 
 ## Wallet purchases
 
-Me → Wallet & top up shows the nine [diamond packs](App/CommunityContent/Products.json). StoreKit supplies the localized prices. Pull down to retry unavailable packs and to check for unfinished purchases. The wallet verifies each transaction, credits the signed-in account's device ledger once, and finishes the transaction after saving the credit.
+Me → Wallet & top up shows the nine [diamond packs](App/CommunityContent/Products.json). StoreKit supplies the localized prices. Pull down to retry unavailable packs and to check for unfinished purchases. The wallet verifies each transaction, credits the signed-in account's device ledger once, and finishes the transaction after saving the credit. Its ImageGen diamond marks the balance, purchase tiers, and activity. District unlocks debit that same balance and appear in their own history. Unlocks and balance are kept on the device for the signed-in account.
 
 The shared `Sese` scheme selects [SeseDiamonds.storekit](Configuration/SeseDiamonds.storekit) under Run → Options → StoreKit Configuration. Running from Xcode uses the local nine-pack catalog and StoreKit test transactions. The file stays outside the application bundle. Use a dedicated acceptance account on the designated simulator. Before installing Debug, verify that any existing app with `im.seex.sao2` on the destination can be replaced.
 

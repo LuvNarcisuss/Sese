@@ -52,10 +52,22 @@ Account deletion blocks new photo uploads for the account and removes related fi
 
 A read-only deployment check confirmed the private JPEG-only bucket, all three Storage policies, signed-in RPC grants, no direct photo-reference insert grant, and the existing Realtime publication. The bucket contained zero files. The revised one-page Privacy PDF was checked against its source and visually reviewed. No accounts, messages, or files were created for this check.
 
+## Cosplay media and public links
+
+On November 12, 2026, production applied migration `014_cosplay_posts.sql` as `20261112063641` and migration `015_public_cosplay_media.sql` as `20261112064020`. The first migration added the post table, upload policies, report target, and media cleanup. The second verified the bucket was empty and enabled public downloads for `cosplay-media`. The bucket accepts JPEG and MP4 files up to 6 MiB. The app limits selected videos to 30 seconds. Existing YouTube link submissions continue to use the works table.
+
+The uploader signs in with the existing account. The Storage upload and review submission share a stable post ID. Anyone with the file URL can open the media immediately after upload, including while the post is pending review. The app explains this before upload and provides the direct link on the post page. Pending post records are visible to their owners. The community gallery lists approved posts from discoverable members and respects blocks. Operators review pending entries in the project console. The report action can target approved posts.
+
+Removal hides the post in the gallery, removes its file, and then deletes the row. Account deletion cleans up both chat photos and Cosplay files. Cleanup also covers files staged before a failed post submission. Chat photos continue to use their private bucket.
+
+Production HTTP checks used generated JPEG and MP4 fixtures and two temporary, non-discoverable test accounts. An authenticated owner uploaded each file and repeated its submission under the same post ID. Each post remained a single pending row. The other account could not list the pending rows, and an owner could not approve a post directly. Unauthenticated upload attempts were rejected. Both media links returned HTTP 200 without an API key or session and matched the uploaded bytes and MIME types. The photo link stopped working after post removal. The account deletion guard blocked deletion while the video existed, then the cleanup flow removed the video and its account. The temporary accounts, profiles, posts, and files were removed.
+
+The isolated PostgreSQL harness also verified approval visibility, blocking, and reporting. Native iPhone and simulator flows have not been run for this release.
+
 ## Outstanding
 
 1. The app uses Bundle ID `com.sese.citycommunit`. The signing team and purchase identifiers are pending.
-2. Member works use source links. A trusted operator must review each pending row and change its status from the Supabase console. There is no automated review or staffing in this handoff.
+2. A trusted operator reviews pending link submissions and Cosplay posts from the Supabase console. The project has no automated review service or assigned moderation staff.
 3. Two-account text and photo messaging, Realtime delivery, denial to outsiders, photo cleanup, and iPhone presentation are unverified. Voice and video calling require an RTC service.
 4. StoreKit product IDs, device signing, purchase environments, and device-specific behavior are unverified. Wallet credit is device-local and account-scoped. No client-writable cloud balance exists.
 

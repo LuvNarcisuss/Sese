@@ -38,7 +38,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let tabs = UITabBarController()
         let pages: [(UIViewController, String, String)] = [
             (ShortsFeedPage(api: api), "Shorts", "shorts"),
-            (CatalogPage(.districts, api: api), "Districts", "districts"),
+            (DistrictMapPage(memberID: memberID, wallet: wallet, api: api), "Districts", "districts"),
             (CatalogPage(.cosplay, api: api), "Cosplay", "cosplay"),
             (InboxPage(api: api), "Chats", "chats"),
             (ProfilePage(memberID: memberID, api: api, wallet: wallet) { [weak self] in self?.showWelcome() }, "Me", "profile")
