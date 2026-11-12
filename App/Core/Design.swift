@@ -1,0 +1,310 @@
+import UIKit
+import CoreText
+import SafariServices
+
+@MainActor
+enum Theme {
+    static let ink = UIColor(red: 0.052, green: 0.043, blue: 0.102, alpha: 1)
+    static let panel = UIColor(red: 0.115, green: 0.092, blue: 0.192, alpha: 1)
+    static let line = UIColor(red: 0.27, green: 0.23, blue: 0.37, alpha: 1)
+    static let paper = UIColor(red: 0.99, green: 0.956, blue: 0.875, alpha: 1)
+    static let secondary = UIColor(red: 0.76, green: 0.71, blue: 0.83, alpha: 1)
+    static let mint = UIColor(red: 0.64, green: 0.97, blue: 0.81, alpha: 1)
+    static let gold = UIColor(red: 1, green: 0.78, blue: 0.48, alpha: 1)
+    static let coral = UIColor(red: 1, green: 0.59, blue: 0.60, alpha: 1)
+
+    private static let fonts: [Bool: String] = {
+        let files = [true: "Fredoka-Variable.ttf", false: "ComicNeue-Regular.ttf"]
+        return files.compactMapValues { file in
+            let url = Resources.url("Fonts/\(file)") as CFURL
+            CTFontManagerRegisterFontsForURL(url, .process, nil)
+            guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
+                  let descriptor = descriptors.first else { return nil }
+            let font = CTFontCreateWithFontDescriptor(descriptor, 16, nil)
+            return CTFontCopyPostScriptName(font) as String
+        }
+    }()
+
+    static func font(_ size: CGFloat, display: Bool = false, textStyle: UIFont.TextStyle = .body) -> UIFont {
+        let name = fonts[display] ?? fonts[!display] ?? "Georgia"
+        let face = UIFont(name: name, size: size) ?? UIFont(descriptor: UIFontDescriptor(name: "Georgia", size: size), size: size)
+        return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: face)
+    }
+
+    static func label(_ text: String, size: CGFloat = 17, color: UIColor = paper, display: Bool = false) -> UILabel {
+        let label = UILabel()
+        label.text = text
+        label.font = font(size, display: display, textStyle: display ? .headline : .body)
+        label.textColor = color
+        label.numberOfLines = 0
+        label.adjustsFontForContentSizeCategory = true
+        return label
+    }
+
+    static func button(_ text: String, icon: String? = nil, accent: Bool = false, action: @escaping () -> Void) -> UIButton {
+        var config = UIButton.Configuration.filled()
+        var attributes = AttributeContainer()
+        attributes.font = font(17, display: true)
+        config.attributedTitle = AttributedString(text, attributes: attributes)
+        config.baseForegroundColor = accent ? ink : paper
+        config.baseBackgroundColor = accent ? mint : panel
+        config.cornerStyle = .large
+        config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+        config.imagePadding = 5
+        let button = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        if let icon {
+            Task { [weak button] in
+                guard let image = await Artwork.image(icon) else { return }
+                button?.configuration?.image = image.scaled(to: 25)
+            }
+        }
+        return button
+    }
+
+    static func icon(_ name: String, label: String, action: @escaping () -> Void) -> UIButton {
+        let button = UIButton(type: .custom)
+        button.setTitle(label, for: .normal)
+        button.titleLabel?.font = font(13, display: true)
+        Task { [weak button] in
+            guard let image = await Artwork.image(name), let button else { return }
+            button.setTitle(nil, for: .normal)
+            button.setImage(image.scaled(to: 29), for: .normal)
+        }
+        button.backgroundColor = panel
+        button.layer.cornerRadius = 14
+        button.accessibilityLabel = label
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
+    }
+
+    static func field(_ placeholder: String) -> UITextField {
+        let field = UITextField()
+        field.font = font(17)
+        field.textColor = paper
+        field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: secondary])
+        field.accessibilityLabel = placeholder
+        field.backgroundColor = panel
+        field.layer.cornerRadius = 12
+        field.layer.borderColor = line.cgColor
+        field.layer.borderWidth = 1
+        field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 44))
+        field.leftViewMode = .always
+        field.heightAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
+        field.clearButtonMode = .never
+        return field
+    }
+
+    static func stack(_ views: [UIView] = [], spacing: CGFloat = 12, axis: NSLayoutConstraint.Axis = .vertical) -> UIStackView {
+        let stack = UIStackView(arrangedSubviews: views)
+        stack.axis = axis
+        stack.spacing = spacing
+        return stack
+    }
+
+    static func card(_ views: [UIView], spacing: CGFloat = 10) -> UIStackView {
+        let stack = stack(views, spacing: spacing)
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
+        stack.backgroundColor = panel
+        stack.layer.cornerRadius = 22
+        stack.layer.borderColor = line.cgColor
+        stack.layer.borderWidth = 1
+        return stack
+    }
+
+    static func empty(_ title: String, _ detail: String) -> UIStackView {
+        card([label(title, size: 23, display: true), label(detail, color: secondary)])
+    }
+
+    static func artwork(_ name: String, mode: UIView.ContentMode = .scaleAspectFill) -> UIImageView {
+        let view = UIImageView()
+        view.contentMode = mode
+        view.clipsToBounds = true
+        view.accessibilityIgnoresInvertColors = true
+        Task { [weak view] in view?.image = await Artwork.image(name) }
+        return view
+    }
+}
+
+extension UIImage {
+    @MainActor func scaled(to size: CGFloat) -> UIImage {
+        let dimension = max(self.size.width, self.size.height)
+        guard dimension > 0 else { return self }
+        let target = CGSize(width: self.size.width * size / dimension, height: self.size.height * size / dimension)
+        return UIGraphicsImageRenderer(size: target).image { _ in draw(in: CGRect(origin: .zero, size: target)) }
+            .withRenderingMode(.alwaysOriginal)
+    }
+}
+
+extension UIStackView {
+    func clear() { arrangedSubviews.forEach { removeArrangedSubview($0); $0.removeFromSuperview() } }
+}
+
+@MainActor
+enum Artwork {
+    private static let storage = (try? Resources.decode(BackendConfiguration.self, "Backend.json"))?.url
+        .appendingPathComponent("storage/v1/object/public/editorial", isDirectory: true)
+    private static let cache: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.totalCostLimit = 48 * 1024 * 1024
+        return cache
+    }()
+    private static var downloads: [URL: Task<UIImage?, Never>] = [:]
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForRequest = 10
+        return URLSession(configuration: configuration)
+    }()
+
+    static let expoPortrait = storage?.appendingPathComponent("944f77db-dbc1-4293-976a-e6bc0dc71f39/expo-duo.jpg")
+
+    static func image(_ name: String) async -> UIImage? {
+        await image(at: storage?.appendingPathComponent("sese-media-v1/\(name).png"))
+    }
+
+    static func image(at url: URL?) async -> UIImage? {
+        guard let url, url.scheme == "https" else { return nil }
+        if let cached = cache.object(forKey: url as NSURL) { return cached }
+        if let pending = downloads[url] { return await pending.value }
+        let task = Task { () -> UIImage? in
+            guard let (data, response) = try? await session.data(from: url),
+                  let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  data.count <= 12_000_000, let image = UIImage(data: data) else { return nil }
+            return image.withRenderingMode(.alwaysOriginal)
+        }
+        downloads[url] = task
+        defer { downloads[url] = nil }
+        let image = await task.value
+        if let image, let pixels = image.cgImage {
+            cache.setObject(image, forKey: url as NSURL, cost: pixels.bytesPerRow * pixels.height)
+        }
+        return image
+    }
+}
+
+final class EditorialImage: UIImageView {
+    init(item: CatalogItem) {
+        super.init(image: nil)
+        contentMode = .scaleAspectFill
+        clipsToBounds = true
+        backgroundColor = Theme.panel
+        layer.cornerRadius = 14
+        Task { [weak self] in
+            if let image = await Artwork.image(at: item.imageUrl) {
+                self?.image = image
+            } else {
+                self?.image = await Artwork.image("background")
+            }
+        }
+    }
+
+    required init?(coder: NSCoder) { return nil }
+}
+
+@MainActor
+class CityPage: UIViewController {
+    let api: CommunityAPI
+    let heading: String
+    let body = Theme.stack(spacing: 14)
+    let actions = Theme.stack(spacing: 8, axis: .horizontal)
+    let scroll = UIScrollView()
+    private let status = Theme.label("", size: 15, color: Theme.secondary)
+
+    init(_ heading: String, api: CommunityAPI) {
+        self.api = api
+        self.heading = heading
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { return nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = Theme.ink
+        let art = Theme.artwork("background")
+        art.alpha = 0.34
+        let title = Theme.label(heading, size: 34, display: true)
+        title.accessibilityTraits.insert(.header)
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let header = Theme.stack(spacing: 10, axis: .horizontal)
+        header.alignment = .center
+        if navigationController?.viewControllers.first !== self {
+            header.addArrangedSubview(Theme.icon("back", label: "Back") { [weak self] in
+                self?.navigationController?.popViewController(animated: true)
+            })
+        }
+        header.addArrangedSubview(title)
+        header.addArrangedSubview(actions)
+        status.isHidden = true
+        let column = Theme.stack([header, status, scroll], spacing: 10)
+        scroll.keyboardDismissMode = .interactive
+        for subview in [art, column, body] { subview.translatesAutoresizingMaskIntoConstraints = false }
+        view.addSubview(art)
+        view.addSubview(column)
+        scroll.addSubview(body)
+        let safe = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            art.topAnchor.constraint(equalTo: view.topAnchor), art.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            art.leadingAnchor.constraint(equalTo: view.leadingAnchor), art.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            column.topAnchor.constraint(equalTo: safe.topAnchor, constant: 10),
+            column.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -4),
+            column.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
+            column.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
+            body.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            body.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -14),
+            body.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+            body.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+            body.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)
+        ])
+    }
+
+    func push(_ page: UIViewController) { navigationController?.pushViewController(page, animated: true) }
+
+    func showStatus(_ text: String?) {
+        status.text = text
+        status.isHidden = text == nil
+    }
+
+    func alert(_ text: String) {
+        guard view.window != nil, presentedViewController == nil else { return }
+        let alert = UIAlertController(title: nil, message: text, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    func open(_ url: URL) {
+        guard url.scheme == "https" else { return }
+        present(SFSafariViewController(url: url), animated: true)
+    }
+
+    func menu(_ title: String, choices: [(String, UIAlertAction.Style, () -> Void)]) {
+        let menu = UIAlertController(title: title, message: nil, preferredStyle: .actionSheet)
+        choices.forEach { text, style, action in menu.addAction(UIAlertAction(title: text, style: style) { _ in action() }) }
+        menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(menu, animated: true)
+    }
+
+    func report(_ target: [String: String]) {
+        let reasons = ["Harassment", "Spam", "Inappropriate content", "Other"]
+        menu("Report", choices: reasons.map { reason in
+            (reason, .default, { [weak self] in
+                guard let self else { return }
+                Task {
+                    do {
+                        try await self.api.report(target, reason: reason)
+                        self.alert("Your report was submitted.")
+                    } catch { self.alert(error.localizedDescription) }
+                }
+            })
+        })
+    }
+
+    func search(_ field: UITextField, into parent: UIStackView, change: @escaping (String) -> Void) {
+        parent.addArrangedSubview(field)
+        field.addAction(UIAction { [weak field] _ in change(field?.text ?? "") }, for: .editingChanged)
+    }
+}

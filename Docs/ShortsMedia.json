@@ -1,0 +1,144 @@
+{
+  "project_url": "https://ujclifehtfrxtrijlaia.supabase.co",
+  "video_format": {
+    "codec": "H.264",
+    "width": 720,
+    "height": 1280,
+    "frame_rate": 30,
+    "audio": "none"
+  },
+  "shorts": [
+    {
+      "id": "fox-costume-in-motion",
+      "kind": "Cosplay Video",
+      "title": "How a fox costume moves",
+      "description": "Two angles show how the tails, ears and makeup shape a fox-inspired performance.",
+      "credit": "TBD Tuyên · Pexels",
+      "license_url": "https://www.pexels.com/license/",
+      "position": 200,
+      "poster_at_seconds": 2.5,
+      "edit": "Cut two portrait takes into a costume study with original English commentary on the silhouette and face. Removed audio.",
+      "sources": [
+        {
+          "page_url": "https://www.pexels.com/video/enchanting-female-in-vibrant-fox-themed-costume-32542808/",
+          "download_url": "https://videos.pexels.com/video-files/32542808/13882799_2160_3840_60fps.mp4",
+          "sha256": "57e9ee1515c05c62f0efe7959f9b6a823691d83ceda1a7819e891713bf07e483",
+          "start_seconds": 0.7,
+          "selected_seconds": 4.8
+        },
+        {
+          "page_url": "https://www.pexels.com/video/artistic-cosplay-portrait-with-fox-ears-32542810/",
+          "download_url": "https://videos.pexels.com/video-files/32542810/13882805_2160_3840_60fps.mp4",
+          "sha256": "d7895811d68de5befa1c0f0342943cc017eda8e05cb9a6561fa31bd90dc69d92",
+          "start_seconds": 5.7,
+          "selected_seconds": 5.7
+        }
+      ],
+      "duration_seconds": 10.5,
+      "video": {
+        "storage_path": "editorial/shorts/v1/fox-costume-in-motion.mp4",
+        "bytes": 4456420,
+        "sha256": "3453875d0d0ed7c638737256a5576f1594de2f062f985af9955b0ffd48d5308c"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/fox-costume-in-motion.jpg",
+        "bytes": 113612,
+        "sha256": "07dc05ae1ecba2b6e15b194cddc6ccde5e81e456023e52363a51569aa9eb9bfe"
+      }
+    },
+    {
+      "id": "narcon-conga-line",
+      "kind": "Cosplay Video",
+      "title": "Follow the conga line",
+      "description": "Animal-costume dancers wind across the lawn at NärCon Sommar in this portrait cut.",
+      "credit": "Rose Abrams · CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "position": 210,
+      "poster_at_seconds": 2.5,
+      "edit": "Trimmed and cropped to portrait. The video and its cover are distributed under CC BY-SA 4.0.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:N%C3%A4rCon_Sommar_2025_-_conga_line_of_furries.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/0/01/N%C3%A4rCon_Sommar_2025_-_conga_line_of_furries.webm/N%C3%A4rCon_Sommar_2025_-_conga_line_of_furries.webm.480p.vp9.webm",
+          "sha256": "04a7d19facc182da339f769231e979eb8fd61a5616e43f018601a616f2b79aba",
+          "start_seconds": 6.0,
+          "selected_seconds": 12.0
+        }
+      ],
+      "duration_seconds": 12.0,
+      "video": {
+        "storage_path": "editorial/shorts/v1/narcon-conga-line.mp4",
+        "bytes": 5105984,
+        "sha256": "3a32474292772604566d05e17e99fdaf40d22a86bf53d050e3557e5bcc2437c2"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/narcon-conga-line.jpg",
+        "bytes": 132012,
+        "sha256": "d608590b2ace0cc79b620e7fc225bff5df641055e5d844f77440a96ef8f7a885"
+      }
+    },
+    {
+      "id": "costume-meetup-hug",
+      "kind": "Cosplay Video",
+      "title": "A costume meet-up hug",
+      "description": "A green animal costume steals the scene in this portrait cut of a meet-up greeting.",
+      "credit": "Dimitri Torterat · CC BY 2.0 France",
+      "license_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+      "position": 220,
+      "poster_at_seconds": 2.5,
+      "creator_url": "https://diti.me/",
+      "edit": "Trimmed, cropped to portrait and muted.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Diti_hugs_Natalie.ogv",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/f/f4/Diti_hugs_Natalie.ogv",
+          "sha256": "1fb1f3f96b875ef8528431fd9449022d5216bf441a9f27cfeb25d5902d7f94da",
+          "start_seconds": 2.0,
+          "selected_seconds": 8.6
+        }
+      ],
+      "duration_seconds": 8.6,
+      "video": {
+        "storage_path": "editorial/shorts/v1/costume-meetup-hug.mp4",
+        "bytes": 3122616,
+        "sha256": "a0d173b606f65c524b4cb41a4e7fb5ca449be7a7ea852694eb9f29f81e702b7f"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/costume-meetup-hug.jpg",
+        "bytes": 59827,
+        "sha256": "92f460099eb7867338fe11299187166bebf61b490507bf6cdddb37ee65e69712"
+      }
+    },
+    {
+      "id": "ask-before-you-snap",
+      "kind": "Film Clip",
+      "title": "Ask before you snap",
+      "description": "TITANIA animates a rule for convention photos in this reframed and captioned excerpt.",
+      "credit": "TITANIA · CC BY 3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "position": 230,
+      "poster_at_seconds": 4.7,
+      "edit": "Excerpt reframed for portrait, muted and captioned in English. The source was edited by Jayvee Enaguas.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:TITANIA_-_Fursuit_Etiquette_%282024%29.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/8/82/TITANIA_-_Fursuit_Etiquette_%282024%29.webm/TITANIA_-_Fursuit_Etiquette_%282024%29.webm.1080p.vp9.webm",
+          "sha256": "fbbdc00a59d1d5b3399c34d198380a3761fd97a8efbbc521036019d73577b5b2",
+          "start_seconds": 7.1,
+          "selected_seconds": 8.0
+        }
+      ],
+      "duration_seconds": 7.966667,
+      "video": {
+        "storage_path": "editorial/shorts/v1/ask-before-you-snap.mp4",
+        "bytes": 541259,
+        "sha256": "2d7b9e9b59b413e0602f3b4772df15aa3b27784763fa2d632ce81e3659f94e3f"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/ask-before-you-snap.jpg",
+        "bytes": 40721,
+        "sha256": "0bc3b685f3376e802f9939828a965b1cfc9d9e693ef87e92601551f6769e4821"
+      }
+    }
+  ]
+}

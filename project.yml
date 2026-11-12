@@ -1,0 +1,91 @@
+name: Sese
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+fileGroups:
+  - Configuration
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    exactVersion: 2.55.6
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+    "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": YES
+targets:
+  Sese:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Config
+          - CommunityContent
+      - path: App/CommunityContent
+        type: folder
+        buildPhase: resources
+    preBuildScripts:
+      - name: Fetch App Icon
+        script: |
+          /bin/sh "$SCRIPT_INPUT_FILE_0" "$SCRIPT_INPUT_FILE_1" "$SCRIPT_INPUT_FILE_2" "$SCRIPT_OUTPUT_FILE_0"
+        inputFiles:
+          - $(SRCROOT)/Scripts/fetch_app_icon.sh
+          - $(SRCROOT)/App/CommunityContent/Backend.json
+          - $(SRCROOT)/Docs/Artwork.json
+        outputFiles:
+          - $(SRCROOT)/App/Assets.xcassets/AppIcon.appiconset/Art.png
+        basedOnDependencyAnalysis: false
+    dependencies:
+      - package: Supabase
+        product: Supabase
+      - sdk: StoreKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sese.citycommunit
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: App/Config/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: im.seex.sao2
+          DEVELOPMENT_TEAM: JPTS6M4T5B
+          CODE_SIGN_STYLE: Automatic
+  SeseUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+      - path: Configuration/SeseDiamonds.storekit
+        buildPhase: resources
+    dependencies:
+      - target: Sese
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.sese.citycommunit.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+schemes:
+  Sese:
+    build:
+      targets:
+        Sese: all
+    run:
+      config: Debug
+      storeKitConfiguration: Configuration/SeseDiamonds.storekit
+    test:
+      config: Debug
+      targets:
+        - name: SeseUITests
+          parallelizable: false
+    archive:
+      config: Release

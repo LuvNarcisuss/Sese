@@ -1,0 +1,277 @@
+{
+  "shorts": {
+    "generator": "ImageGen",
+    "subject": "Cinema clapperboard and play triangle.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-7ffab92c-8ce2-4562-9953-b7ef87804019.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "3a33efe21749b45fbc1f59cea601456d5016d6bf38817450f50db02fd6431d83",
+    "storage_path": "editorial/sese-media-v1/shorts.png",
+    "sha256": "fe16e22f927c37606f013be2721d23ecade67f6dd1d2e76c0b74d05076d99fc4"
+  },
+  "districts": {
+    "generator": "ImageGen",
+    "subject": "Folded city map and paw location pin.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-9cd8dc04-2205-4ba0-b761-f26da3c8b448.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "0c70498b49310a477c9d059c6fd4376d866ae16f5763fe9637b4f97d66aa2fce",
+    "storage_path": "editorial/sese-media-v1/districts.png",
+    "sha256": "ef1fe13b651943f7c6f7c982800adf11fb50aee3979df4a04c16a853ea9806a1"
+  },
+  "cosplay": {
+    "generator": "ImageGen",
+    "subject": "Rabbit-ear costume headband.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-a7d86992-b0d7-440d-b822-8badd17bbe64.png",
+    "source_dimensions": [
+      1263,
+      1246
+    ],
+    "source_sha256": "7ca168d84031bf188b79e76691bce7c26962f2df5cd1f31462b750f5c3f65739",
+    "storage_path": "editorial/sese-media-v1/cosplay.png",
+    "sha256": "a3db372ed6e149126f3abfa790250c399087b3dae9631a4ed991c5512e02489f"
+  },
+  "chats": {
+    "generator": "ImageGen",
+    "subject": "Overlapping conversation bubbles with paw-print accents.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-3d3a2bac-47a1-46cc-b8be-3ffac2dcb2a4.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "d8d7f2551d41662218f3855860afa1a90e352d50a3c3f89a322c01d73454ec19",
+    "storage_path": "editorial/sese-media-v1/chats.png",
+    "sha256": "6902a8d7bb9fc2ec06c1ce4dcf97fb5d0a767dd681334cd99e9151a1fb7ddf15"
+  },
+  "profile": {
+    "generator": "ImageGen",
+    "subject": "Shield profile badge and fox silhouette.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-ce797482-b590-433f-b647-e30711d7b887.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "7b590b5587b006b88e4693b7606638256087ed0e2a8c17dbbbf00d256ae59a3e",
+    "storage_path": "editorial/sese-media-v1/profile.png",
+    "sha256": "60a78104fe21c67f62a16aa851a3ce1082471c062787d421ad964d38fb1928f9"
+  },
+  "settings": {
+    "generator": "ImageGen",
+    "subject": "Six-tooth gear and round center.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-31752e6a-8394-4e2f-b805-954e6b56bc11.png",
+    "source_dimensions": [
+      1263,
+      1246
+    ],
+    "source_sha256": "5f692e580b2e30256deae5cced4a75bcd22de2bab56ff2c69dc0dab2de45a7ad",
+    "storage_path": "editorial/sese-media-v1/settings.png",
+    "sha256": "24de1354df5ca07983e52e0f6a10129ce0f3dcce09db26e5bcf7a6bcefb536f8"
+  },
+  "search": {
+    "generator": "ImageGen",
+    "subject": "Magnifying glass with a down-right handle.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-d38b25fe-6edf-4c2c-8ba4-f5e991ff61cf.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "7b32ce29e1ef127056a9defca05adfa5585af5cb505f03d06466b65f929e8343",
+    "storage_path": "editorial/sese-media-v1/search.png",
+    "sha256": "b66093350bb8f21cbaefa87817e3af7c3dcc0c6a731fa46538f7f91e980bcb5c"
+  },
+  "wallet": {
+    "generator": "ImageGen",
+    "subject": "Violet wallet and gold coin.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-8605eb7f-ace4-4193-b44b-215e29494809.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "0419bc87668376ed6b9ebddff61f9341a5b38429e9dd9d7aea6f137f97efafb1",
+    "storage_path": "editorial/sese-media-v1/wallet.png",
+    "sha256": "927ea3f8283fa8a2ce11437bfb9285ab7735257ee6b28b8b232e046b7770d7b9"
+  },
+  "like": {
+    "generator": "ImageGen",
+    "subject": "Coral heart.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-55374933-a4f2-4b04-8b9f-3ec25cf5bf1a.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "91c9af1365549b53a28439364ccef2e10e04b77751a4736598c4853d3f5e1af3",
+    "storage_path": "editorial/sese-media-v1/like.png",
+    "sha256": "8e0d674bbe77f9a207cf02798ed2611cc491cc6ee336f3aec2b2a36563def1d9"
+  },
+  "save": {
+    "generator": "ImageGen",
+    "subject": "Gold V-notch bookmark.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-c24cd4f8-ce1b-432b-8b5d-f0d1734459b0.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "6ac15a55c2b6c2e3f5b8116719b784844ad57eb8d1b3f37ab0b785d9bd80e5d4",
+    "storage_path": "editorial/sese-media-v1/save.png",
+    "sha256": "b0b20af2a66cf0e73652178a0b8acdb758d3e36dd48231c655a40b61ca86d208"
+  },
+  "comments": {
+    "generator": "ImageGen",
+    "subject": "Violet speech bubble with cream dots.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-05f23afd-5d52-438a-b430-511143427d41.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "027ad6086649e7cfa028a5480eab174f1d9593f4db36de4ae85e670919597f24",
+    "storage_path": "editorial/sese-media-v1/comments.png",
+    "sha256": "c1fbd66429ef9932baad72274fb40504e988dd54d091c39191ebaffeaa9cd2f2"
+  },
+  "share": {
+    "generator": "ImageGen",
+    "subject": "Mint right-facing share arrow.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-b199de11-af80-4e04-89f5-9b5697ff3381.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "89e81705cdaee29bbd6a5266ded3ad2c6eecb734cf65b9357dbdd92d0103dc37",
+    "storage_path": "editorial/sese-media-v1/share.png",
+    "sha256": "c8143134df06f51811d8963c21f926a063862ca5c1d288667ad3c6fcc1047f43"
+  },
+  "back": {
+    "generator": "ImageGen",
+    "subject": "Mint left-facing chevron.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-2aed2733-9cd5-43d6-afec-db5a4a19ef3f.png",
+    "source_dimensions": [
+      1261,
+      1247
+    ],
+    "source_sha256": "41d64696aa11c94af88e7f83e927b26714fb55ead4a5bfcfe968b27069131e9d",
+    "storage_path": "editorial/sese-media-v1/back.png",
+    "sha256": "d6f5b918a62a9d389698425f01263a06e525da51d9b095e018c07ab08299dfda"
+  },
+  "filter": {
+    "generator": "ImageGen",
+    "subject": "Three equal horizontal sliders with staggered knobs.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-bcf9c321-ec5d-4177-9178-e142642ce0dd.png",
+    "source_dimensions": [
+      1536,
+      1024
+    ],
+    "source_sha256": "bfbb6d3b19359d10229071e2f72ce96cbde32488b823d9f5f163d114954103e2",
+    "storage_path": "editorial/sese-media-v1/filter.png",
+    "sha256": "16c20ab05c27eee6f2340db88544e3509448ae34857e48c21f8c08dbfe88915d"
+  },
+  "launcher": {
+    "generator": "ImageGen",
+    "subject": "Opaque violet skyline, rabbit ears, and fox-tail emblem.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-ff6954ff-c085-4b22-8dd5-6fc2ac1bdb00.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "e7042511a0a7e1c85d22adce7357c572cc7fa3c9be6fe3d0ca57b9d955f4b4ed",
+    "storage_path": "editorial/sese-media-v1/launcher.png",
+    "sha256": "398e44fb68b962153fe1aca0a2346135e0fcb82296b6a6f81d3cf5ccf0fca000"
+  },
+  "background": {
+    "generator": "ImageGen",
+    "subject": "Portrait city skyline and transit rails at violet dusk, amber windows, and teal glow.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-613c7e6a-3561-40f2-87c0-45963637a17b.png",
+    "source_dimensions": [
+      1024,
+      1536
+    ],
+    "source_sha256": "c15845156627273bca17c30d2090b27028af6e1156376b4661507f4a9fd599c3",
+    "storage_path": "editorial/sese-media-v1/background.png",
+    "sha256": "9f1f8fc8ab052bade9ef22c4400d49600f6c6b7a183e574066a33107d3065713"
+  },
+  "district-sahara": {
+    "generator": "ImageGen",
+    "subject": "Wide desert plaza at purple dusk, palms and amber architecture.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-7284dbb9-1eef-4a22-8332-4d4bd31c61ea.png",
+    "source_dimensions": [
+      1672,
+      941
+    ],
+    "source_sha256": "006ebfe3a8bedb284865270415e8a47fbb48515d109078a41a500d57890cf917",
+    "storage_path": "editorial/sese-media-v1/district-sahara.png",
+    "sha256": "af3a5cd519d066805af3d1050f72eb2c4e38ecd54ad9c586ee6e72c96a109de2"
+  },
+  "district-tundra": {
+    "generator": "ImageGen",
+    "subject": "Wide icy city and suspended transit at blue hour.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-773594de-f634-479d-be9b-1f6bff302694.png",
+    "source_dimensions": [
+      1672,
+      941
+    ],
+    "source_sha256": "59d9cc597fd72eb484bf92cb7370f90a6553fd18c62478a4e19ca5daf486b650",
+    "storage_path": "editorial/sese-media-v1/district-tundra.png",
+    "sha256": "9e78e79fb4f992e954a1b780f0db17844f45f4c8be002f64701a549fa752b630"
+  },
+  "district-rainforest": {
+    "generator": "ImageGen",
+    "subject": "Wide luminous rainforest bridges, mist and teal foliage.",
+    "palette": "violet, mint, cream, amber",
+    "source": "exec-0150977f-4ded-4661-9267-9e1c1779f3a9.png",
+    "source_dimensions": [
+      1672,
+      941
+    ],
+    "source_sha256": "e4b0baa179d310825a4708b653335bd9ea3ee097d346d5e1bedb2dc46ce0ffba",
+    "storage_path": "editorial/sese-media-v1/district-rainforest.png",
+    "sha256": "09c41c8b42c4414ae46d67d3452312ddf2569d6a5f08581efb1e7129b8368bfb"
+  },
+  "consent-unchecked": {
+    "generator": "ImageGen",
+    "subject": "Unchecked consent box.",
+    "palette": "plum, mint",
+    "prompt": "One single checkbox icon for a mobile app's consent form, square and viewed straight on, isolated on true transparent background. Icon is perfectly centered and fills 76% of canvas width and height, thick high contrast strokes legible at 23 pixels, softly rounded square, flat near-vector graphic with crisp clean edges. City-at-dusk palette, deep plum #211733 and soft mint #a3f7cf. No text, no other icons, no outside glow, no halo, no drop shadow. The interior is deep plum and entirely empty; use a simple soft mint outline. Absolutely no tick, dot, or marking inside.",
+    "source": "exec-ce19d629-9180-4531-800b-a3920244a67d.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "724a4c9fe188b7d06cae7737555291585194911dc62be7378d597d66148bb5fd",
+    "storage_path": "editorial/sese-media-v1/consent-unchecked.png",
+    "sha256": "b83486a4f255292095fa3e409b3a93972360d9ba1cdac5ff28dee96005cd1e3a"
+  },
+  "consent-checked": {
+    "generator": "ImageGen",
+    "subject": "Checked consent box.",
+    "palette": "plum, mint",
+    "prompt": "One single checkbox icon for a mobile app's consent form, square and viewed straight on, isolated on true transparent background. Icon is perfectly centered and fills 76% of canvas width and height, thick high contrast strokes legible at 23 pixels, softly rounded square, flat near-vector graphic with crisp clean edges. City-at-dusk palette, deep plum #211733 and soft mint #a3f7cf. No text, no other icons, no outside glow, no halo, no drop shadow. The rounded square is filled solid soft mint with a single unmistakable thick dark plum check mark inside. No outline beyond the square.",
+    "source": "exec-1e5bd373-93ec-4ddc-a8e0-cf6b307e354b.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "b6e40e5cfa99e94d174bb5fa557d21556cf2cde9aa741053f91e818ba0c7418d",
+    "storage_path": "editorial/sese-media-v1/consent-checked.png",
+    "sha256": "0e66958410c15943bed3c0b378dc218099aac5d2158bbb2585cb6a8af605be8c"
+  }
+}
