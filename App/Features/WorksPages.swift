@@ -44,14 +44,144 @@ final class CommunityWorksPage: CityPage {
                         Theme.label(work.title, size: 23, display: true),
                         Theme.label(work.caption, color: Theme.secondary),
                         author,
-                        Theme.button("Watch at source", icon: "shorts") { [weak self] in self?.open(work.sourceUrl) },
-                        Theme.button("Report") { [weak self] in self?.report(["work_id": work.id.uuidString]) }
+                        Theme.button("Open video", icon: "shorts") { [weak self] in
+                            guard let self else { return }
+                            self.push(MemberWorkPage(work: work, api: self.api))
+                        }
                     ]))
                 }
             } catch {
                 showStatus("Community videos could not be refreshed.")
                 list.clear()
                 list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+            }
+        }
+    }
+}
+
+final class MemberWorkPage: CityPage {
+    private let work: MemberWork
+    private var engagement: PublicationReactionBar?
+
+    init(work: MemberWork, api: CommunityAPI) {
+        self.work = work
+        super.init("Short", api: api)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        body.addArrangedSubview(Theme.label(work.title, size: 26, display: true))
+        if !work.caption.isEmpty { body.addArrangedSubview(Theme.label(work.caption, color: Theme.secondary)) }
+        body.addArrangedSubview(Theme.button("Watch at source", icon: "shorts", accent: true) { [weak self] in
+            guard let self else { return }
+            self.open(self.work.sourceUrl)
+        })
+        if work.status == "approved" {
+            let bar = PublicationReactionBar(api: api, source: .work, item: work.id)
+            body.addArrangedSubview(bar.view)
+            engagement = bar
+        }
+        if work.ownerId != api.memberID {
+            actions.addArrangedSubview(Theme.moreIcon(label: "Report video") { [weak self] in
+                guard let self else { return }
+                self.report(["work_id": self.work.id.uuidString])
+            })
+        }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        engagement?.load()
+    }
+}
+
+@MainActor
+final class PublicationReactionBar {
+    let view = Theme.stack(spacing: 6)
+    private let controls = Theme.stack(spacing: 6, axis: .horizontal)
+    private let status = Theme.label("", size: 14, color: Theme.secondary)
+    private let api: CommunityAPI
+    private let source: PublicationSource
+    private let item: UUID
+    private var totals: PublicationCounts?
+    private var reactions = Set<String>()
+    private var ready = false
+    private var busy = false
+    private var loadTask: Task<Void, Never>?
+
+    init(api: CommunityAPI, source: PublicationSource, item: UUID) {
+        self.api = api
+        self.source = source
+        self.item = item
+        controls.distribution = .fillEqually
+        view.addArrangedSubview(controls)
+        view.addArrangedSubview(status)
+        render()
+    }
+
+    func load() {
+        guard !busy else { return }
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.refresh()
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.status.text = "Likes and saves could not be refreshed."
+                self.status.isHidden = false
+                self.render()
+            }
+        }
+    }
+
+    private func refresh() async throws {
+        async let counts = api.publicationCounts(source, item: item)
+        async let current = api.publicationReactions(source, item: item)
+        let (totals, selected) = try await (counts, current)
+        try Task.checkCancellation()
+        self.totals = totals
+        reactions = Set(selected.map(\.kind))
+        ready = true
+        status.isHidden = true
+        render()
+    }
+
+    private func render() {
+        controls.clear()
+        for (kind, normal, selected, total) in [("like", "Like", "Liked", totals?.likes), ("save", "Save", "Saved", totals?.saves)] {
+            let active = reactions.contains(kind)
+            let label = "\(active ? selected : normal) · \(total.map { $0.formatted() } ?? "—")"
+            let button = Theme.button(label, icon: active ? kind : kind + "-outline") { [weak self] in self?.toggle(kind) }
+            button.isEnabled = ready && !busy
+            button.accessibilityTraits = active ? [.button, .selected] : .button
+            controls.addArrangedSubview(button)
+        }
+        if !ready && !status.isHidden && status.text?.isEmpty == false {
+            let retry = Theme.textAction("Retry") { [weak self] in self?.load() }
+            controls.addArrangedSubview(retry)
+        }
+    }
+
+    private func toggle(_ kind: String) {
+        guard ready, !busy else { return }
+        busy = true
+        loadTask?.cancel()
+        render()
+        let enabled = !reactions.contains(kind)
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.busy = false; self.render() }
+            do {
+                try await self.api.setPublicationReaction(kind, source: self.source, item: self.item, enabled: enabled)
+                if enabled { self.reactions.insert(kind) } else { self.reactions.remove(kind) }
+                self.totals = nil
+                try await self.refresh()
+            } catch {
+                self.status.text = error.localizedDescription
+                self.status.isHidden = false
             }
         }
     }
@@ -98,7 +228,7 @@ final class SubmitWorkPage: CityPage {
                 caption.text = nil
                 link.text = nil
                 view.endEditing(true)
-                showStatus("Submitted for review. View the status in Me → Works.")
+                showStatus("Submitted for review. View the status in Me → Shorts.")
             } catch { alert(error.localizedDescription) }
         }
     }

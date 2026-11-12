@@ -10,6 +10,7 @@
 		0CC7835FDF0F4C840BE65A89 /* WalletPurchaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174DC26CE6A8539453B947C5 /* WalletPurchaseTests.swift */; };
 		0ED954313661C59DB90A4494 /* Agreements.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF18CDC31B2F184511717D77 /* Agreements.swift */; };
 		0F38BEB585797C387DC03284 /* ShortsFeedPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ACA0B0946C7B8B2A2FC728 /* ShortsFeedPage.swift */; };
+		13F727B8E72A999741665AEA /* DistrictBuilderPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BDBA5CA05191BAACF0A7C61 /* DistrictBuilderPage.swift */; };
 		1B69CFD9BD4F2265C3F98FF3 /* CommunityContent in Resources */ = {isa = PBXBuildFile; fileRef = 5E637154A6566B200622D497 /* CommunityContent */; };
 		2173B1A61511026086EC3343 /* DistrictMapPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF77EC5DD0CEEF307186EEC /* DistrictMapPage.swift */; };
 		238FB8C6562E8917A4633317 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 378F84CF5F32672D6E56FD8E /* StoreKit.framework */; };
@@ -27,7 +28,9 @@
 		B97E6CDFA569B0E4CFF6535A /* ProfilePages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3ABD38D61D68D8359F6F2E /* ProfilePages.swift */; };
 		E04B8AD624B5A058A2FA8C41 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFE7E38C6659421375B6863 /* AppDelegate.swift */; };
 		E0AC55FD1C603426B6337E50 /* EntryPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D57365CD420D2B11BC98AB /* EntryPage.swift */; };
+		E62BEE0B1DC2C64D75504EC5 /* DistrictExplorePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D22C906417710B56C6B6BB9 /* DistrictExplorePage.swift */; };
 		F182507E72A4BB641B335718 /* ChatPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89ADFF6661E2524578604296 /* ChatPhoto.swift */; };
+		F37240DCA597DA426AEDD582 /* Districts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC89197189B56301F7129D1 /* Districts.swift */; };
 		F38DF65D2D0CB6B6F15FCAB0 /* CommunityAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55456CC8AC0473744E80251 /* CommunityAPI.swift */; };
 		FCE5373DA0A32DEB3D73BF3F /* WorksPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD22FF7E231F60711CC60615 /* WorksPages.swift */; };
 /* End PBXBuildFile section */
@@ -49,8 +52,11 @@
 		2EB685F5288071FE51D7D818 /* SeseDiamonds.storekit */ = {isa = PBXFileReference; path = SeseDiamonds.storekit; sourceTree = "<group>"; };
 		2FFE7E38C6659421375B6863 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		378F84CF5F32672D6E56FD8E /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		3D22C906417710B56C6B6BB9 /* DistrictExplorePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistrictExplorePage.swift; sourceTree = "<group>"; };
 		46D57365CD420D2B11BC98AB /* EntryPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryPage.swift; sourceTree = "<group>"; };
 		4A3ABD38D61D68D8359F6F2E /* ProfilePages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePages.swift; sourceTree = "<group>"; };
+		4AC89197189B56301F7129D1 /* Districts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Districts.swift; sourceTree = "<group>"; };
+		5BDBA5CA05191BAACF0A7C61 /* DistrictBuilderPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistrictBuilderPage.swift; sourceTree = "<group>"; };
 		5E637154A6566B200622D497 /* CommunityContent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CommunityContent; path = App/CommunityContent; sourceTree = SOURCE_ROOT; };
 		74ACA0B0946C7B8B2A2FC728 /* ShortsFeedPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortsFeedPage.swift; sourceTree = "<group>"; };
 		89ADFF6661E2524578604296 /* ChatPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPhoto.swift; sourceTree = "<group>"; };
@@ -117,6 +123,8 @@
 				FA265D702B7DFD46CF86827C /* ChatPages.swift */,
 				89ADFF6661E2524578604296 /* ChatPhoto.swift */,
 				DC90D006B99C398923D8AE35 /* CosplayPosts.swift */,
+				5BDBA5CA05191BAACF0A7C61 /* DistrictBuilderPage.swift */,
+				3D22C906417710B56C6B6BB9 /* DistrictExplorePage.swift */,
 				CBF77EC5DD0CEEF307186EEC /* DistrictMapPage.swift */,
 				46D57365CD420D2B11BC98AB /* EntryPage.swift */,
 				4A3ABD38D61D68D8359F6F2E /* ProfilePages.swift */,
@@ -143,6 +151,7 @@
 				D55456CC8AC0473744E80251 /* CommunityAPI.swift */,
 				D3069AEEEE4FF1D38FC702B4 /* Design.swift */,
 				EFCB72DE791862F25849D0E4 /* DeviceCredential.swift */,
+				4AC89197189B56301F7129D1 /* Districts.swift */,
 				DDD04BDC585D76568F32DF91 /* Wallet.swift */,
 			);
 			path = Core;
@@ -308,7 +317,10 @@
 				B2FFB285200CCEB936BDC68D /* CosplayPosts.swift in Sources */,
 				A59BE314F9BAD0096F19C403 /* Design.swift in Sources */,
 				9BCC1026E2D89E2CD4EED1B9 /* DeviceCredential.swift in Sources */,
+				13F727B8E72A999741665AEA /* DistrictBuilderPage.swift in Sources */,
+				E62BEE0B1DC2C64D75504EC5 /* DistrictExplorePage.swift in Sources */,
 				2173B1A61511026086EC3343 /* DistrictMapPage.swift in Sources */,
+				F37240DCA597DA426AEDD582 /* Districts.swift in Sources */,
 				E0AC55FD1C603426B6337E50 /* EntryPage.swift in Sources */,
 				B97E6CDFA569B0E4CFF6535A /* ProfilePages.swift in Sources */,
 				0F38BEB585797C387DC03284 /* ShortsFeedPage.swift in Sources */,

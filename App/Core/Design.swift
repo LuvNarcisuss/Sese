@@ -192,10 +192,36 @@ enum Artwork {
     static let expoPortrait = storage?.appendingPathComponent("944f77db-dbc1-4293-976a-e6bc0dc71f39/expo-duo.jpg")
     static let fanPortrait = storage?.appendingPathComponent("sese-media-v1/fan-duo.jpg")
 
+    private static let reactionIcons: [String: UIImage] = {
+        guard let data = try? Data(contentsOf: Resources.url("ReactionArtwork.plist")),
+              let images = try? PropertyListDecoder().decode([String: Data].self, from: data) else { return [:] }
+        // Match the visible shapes, not the differently padded ImageGen canvases.
+        let layouts: [String: (bounds: CGRect, size: CGSize)] = [
+            "like": (CGRect(x: 32, y: 14, width: 79, height: 69), CGSize(width: 48, height: 44)),
+            "like-outline": (CGRect(x: 11, y: 20, width: 121, height: 111), CGSize(width: 48, height: 44)),
+            "save": (CGRect(x: 36, y: 14, width: 72, height: 116), CGSize(width: 32, height: 48)),
+            "save-outline": (CGRect(x: 31, y: 8, width: 82, height: 126), CGSize(width: 32, height: 48))
+        ]
+        return images.reduce(into: [:]) { result, entry in
+            guard let source = UIImage(data: entry.value), let layout = layouts[entry.key],
+                  let shape = source.cgImage?.cropping(to: layout.bounds) else { return }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 3
+            format.opaque = false
+            result[entry.key] = UIGraphicsImageRenderer(size: layout.size, format: format).image { _ in
+                UIImage(cgImage: shape).draw(in: CGRect(origin: .zero, size: layout.size))
+            }.withRenderingMode(.alwaysOriginal)
+        }
+    }()
+
+    static func reactionImage(_ name: String) -> UIImage? { reactionIcons[name] }
+
     static func image(_ name: String) async -> UIImage? {
+        if let icon = reactionImage(name) { return icon }
         let object: String
         switch name {
         case "diamond": object = "exploration/34acd192-a548-49e8-a9ff-8fa39b51e916/diamond.png"
+        case "like-outline", "save-outline": object = "shorts/ui/25cfb986-9b53-4dbe-b40d-f6f63f0171b5/\(name).png"
         case "city-map": object = "exploration/6815e1a4-202e-48c4-9468-23c68d6151c5/city-map.jpg"
         default: object = "sese-media-v1/\(name).png"
         }

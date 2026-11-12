@@ -1,53 +1,12 @@
 import UIKit
 
-private struct DistrictStop {
-    let name: String
-    let description: String
-}
-
 private extension CityDistrict {
-    var artwork: String { self == .central ? "background" : rawValue }
-
     var coordinate: CGPoint {
         switch self {
         case .central: return CGPoint(x: 0.5, y: 0.50)
         case .sahara: return CGPoint(x: 0.21, y: 0.23)
         case .tundra: return CGPoint(x: 0.79, y: 0.25)
         case .rainforest: return CGPoint(x: 0.50, y: 0.78)
-        }
-    }
-
-    var overview: String {
-        switch self {
-        case .central: return "Start in the city center, where the transit lines meet beneath the skyline."
-        case .sahara: return "Follow the palm-lined avenues into warm stone plazas lit by evening lanterns."
-        case .tundra: return "Cross snowy streets and watch elevated trains pass through the city's coldest district."
-        case .rainforest: return "Explore misty terraces and suspended paths among the layered tree canopy."
-        }
-    }
-
-    var stops: [DistrictStop] {
-        switch self {
-        case .central:
-            return [
-                .init(name: "Central Station", description: "The city's transit hub links the downtown concourse with each climate district."),
-                .init(name: "City Hall Plaza", description: "Follow the plaza's broad steps for a view of the downtown skyline and elevated trains.")
-            ]
-        case .sahara:
-            return [
-                .init(name: "Lantern Market", description: "At sundown, lanterns light the stalls along this warm sandstone lane."),
-                .init(name: "Palm Promenade", description: "Palm trees frame an open avenue with shaded benches and views across the district.")
-            ]
-        case .tundra:
-            return [
-                .init(name: "Frostline Station", description: "Watch trains cross the snow on a route above the district's streets."),
-                .init(name: "Glacier Walk", description: "Snowbanks and blue ice line this sheltered pedestrian route.")
-            ]
-        case .rainforest:
-            return [
-                .init(name: "Canopy Walk", description: "A suspended walkway crosses the trees and looks down through several levels of canopy."),
-                .init(name: "Mist Terrace", description: "At the lower terrace, fine mist drifts around platforms woven through the forest.")
-            ]
         }
     }
 }
@@ -117,15 +76,15 @@ private final class DistrictMapView: UIView {
         CGPoint(x: bounds.width * district.coordinate.x, y: bounds.height * district.coordinate.y)
     }
 
-    func update(selected: CityDistrict, active: CityDistrict, ledger: WalletLedger?) {
+    func update(selected: CityDistrict, activeID: String, ledger: WalletLedger?) {
         for (district, marker) in markers {
-            let visited = district == active
+            let isCurrent = district.rawValue == activeID
             let locked = district != .central && ledger?.isUnlocked(district) != true
             marker.layer.borderColor = (district == selected ? Theme.mint : Theme.line).cgColor
             marker.layer.borderWidth = district == selected ? 2 : 1
             marker.setTitleColor(locked ? Theme.secondary : Theme.paper, for: .normal)
             marker.accessibilityLabel = district.name
-            marker.accessibilityValue = visited ? "Current district" : locked ? "Locked" : "Unlocked"
+            marker.accessibilityValue = isCurrent ? "Current district" : locked ? "Locked" : "Unlocked"
             marker.accessibilityTraits = district == selected ? [.button, .selected] : .button
         }
     }
@@ -136,8 +95,9 @@ final class DistrictMapPage: CityPage {
     private let memberID: UUID
     private let summary = Theme.label("", size: 16, color: Theme.secondary)
     private let detail = Theme.stack()
+    private let builtDistricts = Theme.stack()
     private var selected = CityDistrict.central
-    private var active = CityDistrict.central
+    private var activeID = CityDistrict.central.rawValue
     private var districtGuides: [CatalogItem] = []
     private var catalogTask: Task<Void, Never>?
     private lazy var map = DistrictMapView { [weak self] district in
@@ -161,6 +121,14 @@ final class DistrictMapPage: CityPage {
         map.heightAnchor.constraint(equalTo: map.widthAnchor, multiplier: 0.75).isActive = true
         body.addArrangedSubview(map)
         body.addArrangedSubview(detail)
+        body.addArrangedSubview(Theme.card([
+            Theme.label("Build your own district", size: 23, display: true),
+            Theme.label("Choose a theme and put your own streets, buildings, and attractions on the map.", color: Theme.secondary),
+            Theme.button("Build a district · \(BuiltDistrict.price.formatted()) diamonds", icon: "diamond") { [weak self] in
+                self?.openBuilder()
+            }
+        ]))
+        body.addArrangedSubview(builtDistricts)
         NotificationCenter.default.addObserver(self, selector: #selector(render), name: Wallet.didChange, object: wallet)
     }
 
@@ -180,48 +148,74 @@ final class DistrictMapPage: CityPage {
 
     @objc private func render() {
         let ledger = try? wallet.ledger(for: memberID)
+        let custom = ledger?.builtDistricts ?? []
+        let activeName = CityDistrict(rawValue: activeID)?.name ?? custom.first(where: { $0.mapID == activeID })?.name
         let diamondBalance = ledger.map { "\($0.balance.formatted()) diamonds" } ?? "Balance unavailable"
-        summary.text = "You are in \(active.name) · \(diamondBalance)"
-        map.update(selected: selected, active: active, ledger: ledger)
-        detail.clear()
+        summary.text = activeName.map { "You are in \($0) · \(diamondBalance)" } ?? diamondBalance
+        map.update(selected: selected, activeID: activeID, ledger: ledger)
+        renderOfficialDistrict(ledger)
+        renderBuiltDistricts(custom, walletAvailable: ledger != nil)
+    }
 
+    private func renderOfficialDistrict(_ ledger: WalletLedger?) {
+        detail.clear()
         let district = selected
-        let cover = Theme.artwork(district.artwork)
-        cover.layer.cornerRadius = 12
-        cover.heightAnchor.constraint(equalToConstant: 116).isActive = true
         let title = Theme.label(district.name, size: 25, display: true)
         title.accessibilityTraits.insert(.header)
-        let card = Theme.card([cover, title, Theme.label(district.overview, color: Theme.secondary)])
+        let card = Theme.card([title, Theme.label(district.overview, color: Theme.secondary)])
         detail.addArrangedSubview(card)
-
         if district != .central && ledger?.isUnlocked(district) != true {
             let price = district.diamondCost.formatted()
             let unlock = Theme.button("Unlock for \(price) diamonds", accent: true) { [weak self] in self?.confirmUnlock(district) }
             unlock.isEnabled = ledger != nil
             card.addArrangedSubview(unlock)
-            return
+        } else {
+            card.addArrangedSubview(Theme.label("2 streets · 2 buildings · 2 attractions", size: 15, color: Theme.secondary))
+            card.addArrangedSubview(Theme.button("Explore district", accent: true) { [weak self] in self?.openDistrict(district) })
         }
-        if district != active {
-            card.addArrangedSubview(Theme.button("Visit district", accent: true) { [weak self] in
-                self?.active = district
-                self?.render()
-            })
-            return
-        }
+    }
 
-        detail.addArrangedSubview(Theme.label("Explore landmarks", size: 22, display: true))
-        for stop in district.stops {
-            detail.addArrangedSubview(Theme.button(stop.name) { [weak self] in
-                let alert = UIAlertController(title: stop.name, message: stop.description, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Close", style: .cancel))
-                self?.present(alert, animated: true)
-            })
+    private func renderBuiltDistricts(_ districts: [BuiltDistrict], walletAvailable: Bool) {
+        builtDistricts.clear()
+        let title = Theme.label("My districts", size: 24, display: true)
+        title.accessibilityTraits.insert(.header)
+        builtDistricts.addArrangedSubview(title)
+        if districts.isEmpty {
+            let message = walletAvailable ? "Districts you build will appear here." : "Your districts are unavailable. Open the wallet to check your balance."
+            builtDistricts.addArrangedSubview(Theme.label(message, color: Theme.secondary))
         }
-        if let index = districtGuides.firstIndex(where: { $0.id == district.rawValue }) {
-            detail.addArrangedSubview(Theme.button("Read the district guide") { [weak self] in
-                guard let self else { return }
-                self.push(CatalogDetail(items: [self.districtGuides[index]], index: 0, api: self.api))
-            })
+        for district in districts {
+            let details = Theme.label("\(district.style.title) · \(district.places.count) places to explore", size: 15, color: Theme.secondary)
+            let open = Theme.textAction(district.name) { [weak self] in self?.openBuiltDistrict(district) }
+            open.accessibilityHint = "Opens the district map"
+            builtDistricts.addArrangedSubview(Theme.card([open, details], spacing: 4))
+        }
+    }
+
+    private func openDistrict(_ district: CityDistrict) {
+        activeID = district.rawValue
+        render()
+        let guide = districtGuides.first { $0.id == district.rawValue }
+        push(DistrictExplorePage(name: district.name, districtID: district.rawValue, artwork: district.artwork,
+                                 overview: district.overview, places: district.places, memberID: memberID, guide: guide, api: api))
+    }
+
+    private func openBuilder() {
+        push(DistrictBuilderPage(memberID: memberID, wallet: wallet, api: api) { [weak self] district in
+            self?.openBuiltDistrict(district, replacingBuilder: true)
+        })
+    }
+
+    private func openBuiltDistrict(_ district: BuiltDistrict, replacingBuilder: Bool = false) {
+        activeID = district.mapID
+        render()
+        let page = DistrictExplorePage(name: district.name, districtID: district.mapID, artwork: district.style.artwork,
+                                       overview: "Your \(district.style.title.lowercased()) district is ready to explore.",
+                                       places: district.places, memberID: memberID, api: api)
+        if replacingBuilder, let navigationController, navigationController.topViewController is DistrictBuilderPage {
+            navigationController.setViewControllers(Array(navigationController.viewControllers.dropLast()) + [page], animated: true)
+        } else {
+            push(page)
         }
     }
 
@@ -237,14 +231,13 @@ final class DistrictMapPage: CityPage {
             return
         }
         let alert = UIAlertController(title: "Unlock \(district.name)?",
-                                      message: "Spend \(price) diamonds to unlock this district and its landmarks.", preferredStyle: .alert)
+                                      message: "Spend \(price) diamonds to unlock this district and its places.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Unlock", style: .default) { [weak self] _ in
             guard let self else { return }
             do {
                 try self.wallet.unlock(district, for: self.memberID)
-                self.active = district
-                self.render()
+                self.openDistrict(district)
             } catch { self.alert(error.localizedDescription) }
         })
         present(alert, animated: true)

@@ -371,8 +371,8 @@ final class CatalogDetail: CityPage {
     private func renderReactions() {
         reactionBar.clear()
         let id = item.id
-        let like = Theme.button(reactions.contains("like") ? "Liked" : "Like", icon: "like") { [weak self] in self?.toggle("like") }
-        let save = Theme.button(reactions.contains("save") ? "Saved" : "Save", icon: "save") { [weak self] in self?.toggle("save") }
+        let like = Theme.button(reactions.contains("like") ? "Liked" : "Like", icon: reactions.contains("like") ? "like" : "like-outline") { [weak self] in self?.toggle("like") }
+        let save = Theme.button(reactions.contains("save") ? "Saved" : "Save", icon: reactions.contains("save") ? "save" : "save-outline") { [weak self] in self?.toggle("save") }
         like.isEnabled = !busy.contains("\(id)-like")
         save.isEnabled = !busy.contains("\(id)-save")
         reactionBar.addArrangedSubview(like)
@@ -406,27 +406,48 @@ final class CommentsPage: CityPage {
     private let item: CatalogItem
     private let list = Theme.stack()
     private let input = Theme.field("Write a comment")
+    private let total = Theme.label("Comments", size: 15, color: Theme.secondary)
     private var sendButton: UIButton?
+    private let sheet: Bool
+    private let didChange: (() -> Void)?
+    private var loadTask: Task<Void, Never>?
 
-    init(item: CatalogItem, api: CommunityAPI) {
+    init(item: CatalogItem, api: CommunityAPI, sheet: Bool = false,
+         didChange: (() -> Void)? = nil) {
         self.item = item
+        self.sheet = sheet
+        self.didChange = didChange
         super.init("Comments", api: api)
     }
     required init?(coder: NSCoder) { return nil }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        if sheet {
+            actions.addArrangedSubview(Theme.textAction("Done") { [weak self] in self?.navigationController?.dismiss(animated: true) })
+        }
         let button = Theme.button("Post", accent: true) { [weak self] in self?.post() }
         sendButton = button
+        button.accessibilityIdentifier = "comments.post"
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 72).isActive = true
+        input.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         body.addArrangedSubview(Theme.stack([input, button], axis: .horizontal))
+        total.accessibilityIdentifier = "comments.total"
+        body.addArrangedSubview(total)
         body.addArrangedSubview(list)
         reload()
     }
 
     private func reload() {
-        Task {
+        loadTask?.cancel()
+        loadTask = Task {
             do {
                 let rows = try await api.comments(item.id)
+                guard !Task.isCancelled else { return }
+                total.text = "\(rows.count) comments"
+                didChange?()
                 showStatus(nil)
                 list.clear()
                 if rows.isEmpty { list.addArrangedSubview(Theme.empty("Start the conversation", "Share what stood out to you.")) }
@@ -443,15 +464,22 @@ final class CommentsPage: CityPage {
                         identity.alignment = .center
                         name = identity
                     } else {
-                        name = Theme.label("City Resident", display: true)
+                        name = Theme.label(row.editorialKey == nil ? "City Resident" : "Sese Editorial", display: true)
                     }
-                    let own = row.authorId == api.memberID
+                    let own = row.authorId != nil && row.authorId == api.memberID
                     let button = Theme.button(own ? "Delete" : "Report") { [weak self] in
                         if own { self?.remove(row.id) } else { self?.report(["comment_id": row.id.uuidString]) }
                     }
-                    list.addArrangedSubview(Theme.card([name, Theme.label(row.body), button]))
+                    let commentBody = Theme.label(row.body)
+                    commentBody.accessibilityIdentifier = "comment.body"
+                    list.addArrangedSubview(Theme.card([name, commentBody, button]))
                 }
-            } catch { showStatus("Comments could not be loaded."); list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() }) }
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus("Comments could not be loaded.")
+                list.clear()
+                list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
+            }
         }
     }
 
@@ -466,6 +494,7 @@ final class CommentsPage: CityPage {
                 try await api.addComment(item.id, text: text)
                 input.text = nil
                 input.resignFirstResponder()
+                didChange?()
                 reload()
             } catch { alert(error.localizedDescription) }
         }
@@ -475,7 +504,11 @@ final class CommentsPage: CityPage {
         menu("Delete this comment?", choices: [("Delete", .destructive, { [weak self] in
             guard let self else { return }
             Task {
-                do { try await self.api.removeComment(id); self.reload() }
+                do {
+                    try await self.api.removeComment(id)
+                    self.didChange?()
+                    self.reload()
+                }
                 catch { self.alert(error.localizedDescription) }
             }
         })])

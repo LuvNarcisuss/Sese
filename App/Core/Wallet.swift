@@ -48,8 +48,13 @@ struct DistrictUnlock: Codable {
 struct WalletLedger: Codable {
     var purchases: [WalletPurchase] = []
     var districtUnlocks: [String: DistrictUnlock]?
+    var builtDistricts: [BuiltDistrict]?
     var credited: Int { purchases.reduce(0) { $0 + $1.diamonds } }
-    var balance: Int { credited - (districtUnlocks ?? [:]).values.reduce(0) { $0 + $1.diamonds } }
+    var balance: Int {
+        let unlocked = (districtUnlocks ?? [:]).values.reduce(0) { $0 + $1.diamonds }
+        let built = (builtDistricts ?? []).reduce(0) { $0 + $1.diamonds }
+        return credited - unlocked - built
+    }
 
     func isUnlocked(_ district: CityDistrict) -> Bool {
         district == .central || districtUnlocks?[district.rawValue] != nil
@@ -58,6 +63,7 @@ struct WalletLedger: Codable {
 
 enum WalletError: LocalizedError {
     case invalidCatalog, productUnavailable, paymentsRestricted, unverified, accountChanged, invalidLedger, deliveryPending, insufficientDiamonds
+    case invalidDistrictName
 
     var errorDescription: String? {
         switch self {
@@ -68,7 +74,8 @@ enum WalletError: LocalizedError {
         case .accountChanged: return "Log in to the original account to complete this purchase."
         case .invalidLedger: return "Your wallet could not be opened. Please try again."
         case .deliveryPending: return "Your purchase is awaiting delivery. Pull down to check your balance again."
-        case .insufficientDiamonds: return "You do not have enough diamonds to unlock this district."
+        case .insufficientDiamonds: return "You do not have enough diamonds for this district."
+        case .invalidDistrictName: return "Enter a district name between 1 and 30 characters."
         }
     }
 }
@@ -207,6 +214,15 @@ final class Wallet {
                 }
                 balance -= unlock.diamonds
             }
+            var districtIDs = Set<UUID>()
+            for district in ledger.builtDistricts ?? [] {
+                guard districtIDs.insert(district.id).inserted,
+                      BuiltDistrict.validName(district.name) == district.name,
+                      district.diamonds > 0, district.diamonds <= balance else {
+                    throw WalletError.invalidLedger
+                }
+                balance -= district.diamonds
+            }
             return ledger
         } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
             return WalletLedger()
@@ -222,6 +238,20 @@ final class Wallet {
         unlocks[district.rawValue] = DistrictUnlock(diamonds: district.diamondCost, date: Date())
         ledger.districtUnlocks = unlocks
         try save(ledger, for: member)
+    }
+
+    func buildDistrict(id: UUID, name: String, style: DistrictStyle, plan: DistrictPlan, for member: UUID) throws -> BuiltDistrict {
+        guard account == member else { throw WalletError.accountChanged }
+        guard let name = BuiltDistrict.validName(name) else { throw WalletError.invalidDistrictName }
+        var ledger = try ledger(for: member)
+        var districts = ledger.builtDistricts ?? []
+        if let existing = districts.first(where: { $0.id == id }) { return existing }
+        guard ledger.balance >= BuiltDistrict.price else { throw WalletError.insufficientDiamonds }
+        let district = BuiltDistrict(id: id, name: name, style: style, plan: plan, diamonds: BuiltDistrict.price, date: Date())
+        districts.insert(district, at: 0)
+        ledger.builtDistricts = districts
+        try save(ledger, for: member)
+        return district
     }
 
     private func save(_ ledger: WalletLedger, for member: UUID) throws {

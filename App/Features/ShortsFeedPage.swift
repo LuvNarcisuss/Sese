@@ -20,26 +20,34 @@ private struct HostedShort {
     }
 }
 
-private struct ShortsPublisher {
-    let name: String
-    let portrait: String
+private extension CatalogItem {
+    var creatorName: String { credit.components(separatedBy: " · ").first ?? credit }
 
-    init(_ item: CatalogItem) {
-        name = item.credit.components(separatedBy: " · ").first ?? item.credit
-        switch item.id {
-        case "fox-costume-in-motion": portrait = "expo-judy"
-        case "narcon-conga-line": portrait = "fan-duo"
-        case "costume-meetup-hug": portrait = "expo-nick"
-        default: portrait = "expo-duo"
+    var creatorPortrait: String {
+        switch id {
+        case "fox-costume-in-motion": return "expo-judy"
+        case "narcon-conga-line": return "fan-duo"
+        case "costume-meetup-hug": return "expo-nick"
+        default: return "expo-duo"
         }
     }
 }
 
-private final class ShortsPublisherPage: CityPage {
-    private let short: HostedShort
+private final class EditorialShortsProfile: CityPage {
+    private let item: CatalogItem
+    private let videos: [CatalogItem]
+    private let openShort: (CatalogItem) -> Void
+    private let metrics = Theme.stack(spacing: 8, axis: .horizontal)
+    private let tabs = Theme.stack()
+    private let gallery = Theme.stack()
+    private var cosplay: [CatalogItem] = []
+    private var selection = "Shorts"
+    private var loadedCosplay = false
 
-    init(short: HostedShort, api: CommunityAPI) {
-        self.short = short
+    init(item: CatalogItem, videos: [CatalogItem], api: CommunityAPI, openShort: @escaping (CatalogItem) -> Void) {
+        self.item = item
+        self.videos = videos
+        self.openShort = openShort
         super.init("Creator", api: api)
     }
 
@@ -47,26 +55,139 @@ private final class ShortsPublisherPage: CityPage {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let item = short.item
-        let publisher = ShortsPublisher(item)
-        let identity = Theme.stack([
-            MemberAvatar.view(publisher.portrait, size: 72),
-            Theme.stack([
-                Theme.label(publisher.name, size: 26, display: true),
-                Theme.label("Editorial creator", size: 15, color: Theme.secondary)
-            ], spacing: 4)
-        ], spacing: 12, axis: .horizontal)
+        let name = Theme.label(item.creatorName, size: 26, display: true)
+        let bio = Theme.label("An editorial collection of credited films and costume work.", color: Theme.secondary)
+        let identity = Theme.stack([MemberAvatar.view(item.creatorPortrait, size: 70), Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
         identity.alignment = .center
-        body.addArrangedSubview(Theme.card([identity, Theme.label(item.credit, size: 15, color: Theme.secondary)]))
-        let portraitCredit = publisher.portrait == "fan-duo" ? MemberAvatar.fanCredit : MemberAvatar.credit
-        if let portraitCredit {
-            body.addArrangedSubview(Theme.button("Cosplay portrait credit") { [weak self] in self?.open(portraitCredit) })
-        }
-        body.addArrangedSubview(Theme.label("Works", size: 22, display: true))
-        body.addArrangedSubview(Theme.button(item.title, icon: "shorts") { [weak self] in
-            self?.navigationController?.popViewController(animated: true)
+        metrics.distribution = .fillEqually
+        body.addArrangedSubview(Theme.card([identity, metrics]))
+        let portraitCredit = item.creatorPortrait == "fan-duo" ? MemberAvatar.fanCredit : MemberAvatar.credit
+        body.addArrangedSubview(Theme.textAction("Source and portrait credits") { [weak self] in
+            guard let self else { return }
+            var choices: [(String, UIAlertAction.Style, () -> Void)] = [
+                ("Original video", .default, { [weak self, source = self.item.sourceUrl] in self?.open(source) })
+            ]
+            if let portraitCredit {
+                choices.append(("Cosplay portrait", .default, { [weak self] in self?.open(portraitCredit) }))
+            }
+            self.menu("Credits", choices: choices)
         })
-        body.addArrangedSubview(Theme.button("View original source") { [weak self] in self?.open(item.sourceUrl) })
+        body.addArrangedSubview(tabs)
+        body.addArrangedSubview(gallery)
+        showMetrics(videos.compactMap { api.cachedShortCount($0.id) })
+        renderWorks()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        Task { [weak self, api] in
+            guard let self else { return }
+            async let counts = try? api.shortCounts(videos.map(\.id))
+            async let catalog = try? api.catalog()
+            let (rows, catalogItems) = await (counts, catalog)
+            if let rows { showMetrics(rows) }
+            if let catalogItems {
+                let hostedIDs = Set(videos.map(\.id))
+                cosplay = catalogItems.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
+                    ($0.kind == "Cosplay Look" || $0.kind == "Cosplay Video") && !hostedIDs.contains($0.id) }
+                loadedCosplay = true
+            }
+            if selection == "Cosplay" { renderWorks() }
+        }
+    }
+
+    private func showMetrics(_ rows: [ShortCounts]?) {
+        metrics.clear()
+        let complete = rows.flatMap { $0.count == videos.count ? $0 : nil }
+        metrics.addArrangedSubview(profileStat(complete?.reduce(0) { $0 + $1.likes }, title: "Likes"))
+        metrics.addArrangedSubview(profileStat(complete?.reduce(0) { $0 + $1.saves }, title: "Saves"))
+        metrics.addArrangedSubview(profileStat(0, title: "Following"))
+        if complete?.contains(where: { $0.isLimited == true }) == true {
+            showStatus("Counts include estimates and available Sese activity.")
+        } else {
+            let estimates = complete?.contains(where: \.editorialBaseline) == true
+            showStatus(estimates ? "Counts include editorial estimates." : nil)
+        }
+    }
+
+    private func renderWorks() {
+        tabs.clear()
+        tabs.addArrangedSubview(profileTabs(["Shorts", "Cosplay"], selected: selection) { [weak self] name in
+            self?.selection = name
+            self?.renderWorks()
+        })
+        gallery.clear()
+        let shown = selection == "Shorts" ? videos : cosplay
+        guard !shown.isEmpty else {
+            let message = loadedCosplay ? "No other cosplay work is credited here." : "Cosplay work is unavailable."
+            gallery.addArrangedSubview(Theme.label(message, color: Theme.secondary))
+            return
+        }
+        addVideoTiles(shown, to: gallery, accessible: traitCollection.preferredContentSizeCategory.isAccessibilityCategory) { [weak self] item in
+            guard let self else { return }
+            if self.selection == "Shorts" { self.openShort(item) }
+            else if let index = shown.firstIndex(where: { $0.id == item.id }) {
+                self.push(CatalogDetail(items: shown, index: index, api: self.api))
+            }
+        }
+    }
+}
+
+private final class ShortsAction: UIButton {
+    private let art = UIImageView()
+    private let fallback = Theme.label("", size: 12, display: true)
+    private var artworkKey: String?
+    let count = Theme.label("—", size: 13, display: true)
+
+    init(size: CGFloat, action: @escaping (UIView) -> Void) {
+        super.init(frame: .zero)
+        widthAnchor.constraint(equalToConstant: size).isActive = true
+        heightAnchor.constraint(equalToConstant: size).isActive = true
+        art.contentMode = .scaleAspectFit
+        fallback.textAlignment = .center
+        for view in [art, fallback] as [UIView] {
+            view.isUserInteractionEnabled = false
+            view.isAccessibilityElement = false
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: leadingAnchor), view.trailingAnchor.constraint(equalTo: trailingAnchor),
+                view.topAnchor.constraint(equalTo: topAnchor), view.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
+        count.textAlignment = .center
+        count.isAccessibilityElement = false
+        addAction(UIAction { [weak self] _ in
+            if let self { action(self) }
+        }, for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func render(icon: String, label: String, total: Int?, selected: Bool = false, enabled: Bool = true) {
+        accessibilityLabel = label
+        accessibilityValue = total.map { $0.formatted() } ?? "Count unavailable"
+        accessibilityTraits = selected ? [.button, .selected] : .button
+        isEnabled = enabled
+        isSelected = selected
+        count.text = total.map { $0.formatted() } ?? "—"
+        fallback.text = label
+        guard artworkKey != icon else { return }
+        artworkKey = icon
+        if let image = Artwork.reactionImage(icon) {
+            art.image = image
+            fallback.isHidden = true
+            return
+        }
+        art.image = nil
+        fallback.isHidden = false
+        Task { [weak self] in
+            let image = await Artwork.image(icon)
+            guard let self, self.artworkKey == icon else { return }
+            self.art.image = image
+            self.fallback.isHidden = image != nil
+            if image == nil { self.artworkKey = nil }
+        }
     }
 }
 
@@ -97,8 +218,11 @@ private final class ShortsClipPage: UIViewController {
     var share: ((UIView) -> Void)?
     var options: (() -> Void)?
     var openProfile: (() -> Void)?
-    private var like: UIButton?
-    private var save: UIButton?
+    private var like: ShortsAction!
+    private var save: ShortsAction!
+    private var commentAction: ShortsAction!
+    private var shareAction: ShortsAction!
+    private var baselineLabel: UILabel!
 
     init(short: HostedShort) {
         item = short.item
@@ -112,8 +236,8 @@ private final class ShortsClipPage: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.ink
         view.accessibilityIdentifier = "shorts.clip.\(item.id)"
-        let publisher = ShortsPublisher(item)
-        let avatar = MemberAvatar.button(publisher.portrait, size: 48, label: "Open \(publisher.name)’s creator profile") {
+        let actionSize: CGFloat = 48
+        let avatar = MemberAvatar.button(item.creatorPortrait, size: actionSize, label: "Open \(item.creatorName)’s creator profile") {
             [weak self] in self?.openProfile?()
         }
         avatar.accessibilityIdentifier = "shorts.creator"
@@ -123,26 +247,25 @@ private final class ShortsClipPage: UIViewController {
         let title = Theme.label(item.title, size: 22, display: true)
         title.numberOfLines = 2
         title.accessibilityTraits.insert(.header)
-        let caption = Theme.label(item.description, size: 14, color: Theme.secondary)
+        let caption = Theme.label(item.description, size: 14, color: Theme.paper)
         caption.numberOfLines = 2
-        let metadata = Theme.stack([credit, title, caption], spacing: 4)
+        let baseline = Theme.label("", size: 12, color: Theme.paper)
+        baseline.isHidden = true
+        baselineLabel = baseline
+        let metadata = Theme.stack([credit, title, caption, baseline], spacing: 4)
         let more = Theme.moreIcon(label: "Video options") { [weak self] in self?.options?() }
 
-        let like = Theme.icon("like", label: "Like") { [weak self] in self?.react?("like") }
+        like = ShortsAction(size: actionSize) { [weak self] _ in self?.react?("like") }
         like.accessibilityIdentifier = "shorts.like"
-        self.like = like
-        let save = Theme.icon("save", label: "Save") { [weak self] in self?.react?("save") }
+        save = ShortsAction(size: actionSize) { [weak self] _ in self?.react?("save") }
         save.accessibilityIdentifier = "shorts.save"
-        self.save = save
-        let comments = Theme.icon("comments", label: "Comments") { [weak self] in self?.comments?() }
-        comments.accessibilityIdentifier = "shorts.comments"
-        let share = Theme.icon("share", label: "Share") {}
-        share.accessibilityIdentifier = "shorts.share"
-        share.addAction(UIAction { [weak self, weak share] _ in
-            guard let share else { return }
-            self?.share?(share)
-        }, for: .touchUpInside)
-        let actions = Theme.stack([avatar, like, comments, save, share, more], spacing: 8)
+        commentAction = ShortsAction(size: actionSize) { [weak self] _ in self?.comments?() }
+        commentAction.accessibilityIdentifier = "shorts.comments"
+        shareAction = ShortsAction(size: actionSize) { [weak self] view in self?.share?(view) }
+        shareAction.accessibilityIdentifier = "shorts.share"
+        let counted: [ShortsAction] = [like, commentAction, save, shareAction]
+        let actionRows: [UIView] = counted.map { Theme.stack([$0, $0.count], spacing: 0) }
+        let actions = Theme.stack([avatar] + actionRows + [more], spacing: 5)
         actions.alignment = .center
 
         let gradient = ShortsVideoGradient(frame: .zero)
@@ -177,21 +300,22 @@ private final class ShortsClipPage: UIViewController {
         ])
     }
 
-    func renderReactions(_ enabled: Set<String>, busy: Set<String>) {
+    func renderEngagement(_ reactions: Set<String>, counts: ShortCounts?, busy: Set<String>, ready: Bool) {
         loadViewIfNeeded()
-        update(like, name: "Like", selectedName: "Liked", enabled: enabled.contains("like"), busy: busy.contains("like"))
-        update(save, name: "Save", selectedName: "Saved", enabled: enabled.contains("save"), busy: busy.contains("save"))
-    }
-
-    private func update(_ button: UIButton?, name: String, selectedName: String, enabled: Bool, busy: Bool) {
-        button?.accessibilityLabel = enabled ? selectedName : name
-        button?.isSelected = enabled
-        button?.layer.shadowColor = Theme.mint.cgColor
-        button?.layer.shadowOffset = .zero
-        button?.layer.shadowRadius = 6
-        button?.layer.shadowOpacity = enabled ? 1 : 0
-        button?.accessibilityTraits = enabled ? [.button, .selected] : .button
-        button?.isEnabled = !busy
+        let liked = reactions.contains("like")
+        let saved = reactions.contains("save")
+        like.render(icon: liked ? "like" : "like-outline", label: liked ? "Liked" : "Like", total: counts?.likes,
+                    selected: liked, enabled: ready && busy.isEmpty)
+        save.render(icon: saved ? "save" : "save-outline", label: saved ? "Saved" : "Save", total: counts?.saves,
+                    selected: saved, enabled: ready && busy.isEmpty)
+        commentAction.render(icon: "comments", label: "Comments", total: counts?.comments)
+        shareAction.render(icon: "share", label: "Share", total: counts?.shares)
+        if counts?.isLimited == true {
+            baselineLabel.text = counts?.editorialBaseline == true ? "Estimates + available activity" : "Available Sese activity"
+        } else {
+            baselineLabel.text = "Counts include editorial estimates"
+        }
+        baselineLabel.isHidden = counts?.isLimited != true && counts?.editorialBaseline != true
     }
 }
 
@@ -206,7 +330,17 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     private var pending: [String: Set<String>] = [:]
     private var catalogTask: Task<Void, Never>?
     private var reactionsTask: Task<Void, Never>?
-    private var query = ""
+    private var countsTask: Task<Void, Never>?
+    private var visibleCatalogTask: Task<Void, Never>?
+    private var reactionsReady = false
+    private let normalHeader = Theme.stack(spacing: 8, axis: .horizontal)
+    private let searchHeader = Theme.stack(spacing: 8, axis: .horizontal)
+    private let searchField = Theme.field("Search shorts")
+    private weak var searchButton: UIButton?
+    private let searchPanel = UIScrollView()
+    private let searchContent = Theme.stack(spacing: 12)
+    private var searchScope = "All"
+    private var searching = false
     private var kind: String?
     private var visible = false
     private var paging = false
@@ -221,6 +355,13 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     required init?(coder: NSCoder) { nil }
 
+    func returnFromCreatorProfileIfNeeded() {
+        guard let navigationController,
+              let openedPage = navigationController.viewControllers.dropFirst().first,
+              openedPage is EditorialShortsProfile || openedPage is ProfilePage else { return }
+        navigationController.popToRootViewController(animated: false)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.ink
@@ -231,13 +372,16 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         title.adjustsFontSizeToFitWidth = true
         title.minimumScaleFactor = 0.65
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let header = Theme.stack([
+        let search = Theme.icon("search", label: "Search shorts") { [weak self] in self?.search() }
+        searchButton = search
+        for control in [
             title,
-            Theme.icon("search", label: "Search shorts") { [weak self] in self?.search() },
+            search,
             Theme.icon("filter", label: "Filter shorts") { [weak self] in self?.filter() },
             Theme.icon("shorts", label: "Community videos") { [weak self] in self?.showCommunity() }
-        ], spacing: 8, axis: .horizontal)
-        header.alignment = .center
+        ] as [UIView] { normalHeader.addArrangedSubview(control) }
+        normalHeader.alignment = .center
+        let header = Theme.stack([normalHeader, searchHeader], spacing: 0)
         header.isLayoutMarginsRelativeArrangement = true
         header.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 2, leading: 16, bottom: 6, trailing: 16)
         header.translatesAutoresizingMaskIntoConstraints = false
@@ -254,9 +398,10 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         view.addSubview(pager.view)
         pager.didMove(toParent: self)
 
-        view.addSubview(header)
         state.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(state)
+        view.addSubview(header)
+        configureSearch(below: header)
         let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             pager.view.topAnchor.constraint(equalTo: view.topAnchor),
@@ -274,7 +419,20 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(memberBlocked(_:)),
+                                               name: CommunityAPI.memberBlocked, object: nil)
         loadCatalog()
+    }
+
+    @objc private func memberBlocked(_ notification: Notification) {
+        guard (notification.object as? CommunityAPI) === api,
+              let id = notification.userInfo?["memberID"] as? UUID,
+              catalog.contains(where: { $0.item.publisherId == id }) else { return }
+        visibleCatalogTask?.cancel()
+        catalog.removeAll { $0.item.publisherId == id }
+        applyFilters()
+        refreshCounts()
+        renderSearchResults()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -287,6 +445,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         visible = true
         updateTabBarAppearance(fullBleed: !pager.view.isHidden)
         refreshReactions()
+        refreshCounts()
+        if loaded { refreshVisibleCatalog() }
         playbackVisibilityChanged()
     }
 
@@ -301,7 +461,7 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     @objc private func playbackVisibilityChanged() {
         guard let current else { return }
-        current.playback.setActive(visible && !pager.view.isHidden && !paging && !overlayOpen &&
+        current.playback.setActive(visible && !pager.view.isHidden && !paging && !overlayOpen && !searching &&
                                    UIApplication.shared.applicationState == .active)
     }
 
@@ -329,6 +489,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                 self.catalog = catalog.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
                 self.loaded = true
                 self.applyFilters()
+                self.refreshCounts()
+                self.renderSearchResults()
             } catch {
                 guard !Task.isCancelled, let self else { return }
                 self.showState("Shorts could not be loaded.", retry: true)
@@ -348,15 +510,11 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         if retry { state.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.loadCatalog() }) }
     }
 
-    private func applyFilters() {
+    private func applyFilters(preferredID: String? = nil) {
         guard loaded else { return }
-        let previous = current?.item.id
+        let previous = preferredID ?? current?.item.id
         current?.playback.releasePlayback()
-        items = catalog.filter { short in
-            let item = short.item
-            return (kind == nil || kind == item.kind) &&
-                (query.isEmpty || "\(item.title) \(item.description) \(item.credit)".localizedCaseInsensitiveContains(query))
-        }
+        items = catalog.filter { kind == nil || kind == $0.item.kind }
         guard let short = items.first(where: { $0.item.id == previous }) ?? items.first else {
             showState(catalog.isEmpty ? "No shorts are available yet." : "No shorts match your search or filter.")
             return
@@ -374,15 +532,19 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         page.react = { [weak self] kind in self?.toggle(kind, for: item) }
         page.comments = { [weak self] in
             guard let self else { return }
-            self.navigationController?.pushViewController(CommentsPage(item: item, api: self.api), animated: true)
+            self.showComments(item)
         }
         page.share = { [weak self] button in self?.share(item, from: button) }
         page.options = { [weak self] in self?.showVideoOptions(item) }
         page.openProfile = { [weak self] in
             guard let self, !self.paging else { return }
-            self.navigationController?.pushViewController(ShortsPublisherPage(short: short, api: self.api), animated: true)
+            if let id = item.publisherId {
+                self.navigationController?.pushViewController(ProfilePage(memberID: id, api: self.api), animated: true)
+            } else {
+                self.showEditorialProfile(item)
+            }
         }
-        page.renderReactions(reactions[item.id] ?? [], busy: pending[item.id] ?? [])
+        page.renderEngagement(reactions[item.id] ?? [], counts: api.cachedShortCount(item.id), busy: pending[item.id] ?? [], ready: reactionsReady)
         return page
     }
 
@@ -425,20 +587,24 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         reactionsTask = Task { [weak self, api] in
             guard let values = try? await api.reactions(), !Task.isCancelled, let self else { return }
             self.reactions = Dictionary(grouping: values, by: \.catalogId).mapValues { Set($0.map(\.kind)) }
+            self.reactionsReady = true
             self.renderReactions()
+            self.renderSearchResults()
         }
     }
 
     private func renderReactions() {
         guard let current else { return }
         let id = current.item.id
-        current.renderReactions(reactions[id] ?? [], busy: pending[id] ?? [])
+        current.renderEngagement(reactions[id] ?? [], counts: api.cachedShortCount(id), busy: pending[id] ?? [], ready: reactionsReady)
     }
 
     private func toggle(_ kind: String, for item: CatalogItem) {
-        guard pending[item.id, default: []].insert(kind).inserted else { return }
+        guard reactionsReady, pending[item.id]?.isEmpty != false else { return }
+        pending[item.id] = [kind]
         let enabled = !(reactions[item.id]?.contains(kind) ?? false)
         reactionsTask?.cancel()
+        countsTask?.cancel()
         renderReactions()
         Task {
             defer {
@@ -450,30 +616,172 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                 try await api.setReaction(kind, item: item.id, enabled: enabled)
                 if enabled { reactions[item.id, default: []].insert(kind) }
                 else { reactions[item.id]?.remove(kind) }
+                if api.cachedShortCount(item.id)?.isLimited != true {
+                    _ = try? await api.shortCounts([item.id])
+                }
             } catch { showAlert(error.localizedDescription) }
         }
     }
 
+    private func configureSearch(below header: UIView) {
+        searchField.returnKeyType = .search
+        searchField.clearButtonMode = .whileEditing
+        searchField.addAction(UIAction { [weak self] _ in self?.renderSearchResults() }, for: .editingChanged)
+        searchField.addAction(UIAction { [weak self] _ in self?.searchField.resignFirstResponder() }, for: .editingDidEndOnExit)
+        searchHeader.alignment = .center
+        searchHeader.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        searchHeader.addArrangedSubview(searchField)
+        searchHeader.addArrangedSubview(Theme.textAction("Cancel") { [weak self] in self?.setSearchOpen(false) })
+        searchHeader.isHidden = true
+        searchPanel.isHidden = true
+        searchPanel.alpha = 0
+        searchPanel.backgroundColor = Theme.ink.withAlphaComponent(0.76)
+        searchPanel.keyboardDismissMode = .onDrag
+        searchPanel.accessibilityIdentifier = "shorts.search.results"
+        searchPanel.translatesAutoresizingMaskIntoConstraints = false
+        searchContent.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(searchPanel, belowSubview: header)
+        searchPanel.addSubview(searchContent)
+        NSLayoutConstraint.activate([
+            searchPanel.topAnchor.constraint(equalTo: header.bottomAnchor),
+            searchPanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            searchPanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            searchPanel.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            searchContent.topAnchor.constraint(equalTo: searchPanel.contentLayoutGuide.topAnchor, constant: 10),
+            searchContent.bottomAnchor.constraint(equalTo: searchPanel.contentLayoutGuide.bottomAnchor, constant: -14),
+            searchContent.leadingAnchor.constraint(equalTo: searchPanel.contentLayoutGuide.leadingAnchor, constant: 16),
+            searchContent.trailingAnchor.constraint(equalTo: searchPanel.contentLayoutGuide.trailingAnchor, constant: -16),
+            searchContent.widthAnchor.constraint(equalTo: searchPanel.frameLayoutGuide.widthAnchor, constant: -32)
+        ])
+    }
+
     private func search() {
         guard !paging else { return }
-        let alert = UIAlertController(title: "Search shorts", message: nil, preferredStyle: .alert)
-        alert.addTextField { [query] field in
-            field.text = query
-            field.font = Theme.font(17)
-            field.placeholder = "Title or creator"
+        setSearchOpen(true)
+    }
+
+    private func setSearchOpen(_ open: Bool) {
+        guard open != searching else { return }
+        let origin = searchButton.map { $0.convert($0.bounds, to: view) }
+        searching = open
+        pager.view.isUserInteractionEnabled = !open
+        pager.view.accessibilityElementsHidden = open
+        state.accessibilityElementsHidden = open
+        let animated = !UIAccessibility.isReduceMotionEnabled
+        if open {
+            normalHeader.isHidden = true
+            searchHeader.isHidden = false
+            searchPanel.isHidden = false
+            renderSearchResults()
+            view.layoutIfNeeded()
+            if animated, let origin, searchField.bounds.width > origin.width {
+                let destination = searchField.convert(searchField.bounds, to: view)
+                searchField.transform = CGAffineTransform(translationX: origin.midX - destination.midX,
+                                                          y: origin.midY - destination.midY)
+                    .scaledBy(x: origin.width / destination.width, y: 1)
+            }
+            searchField.becomeFirstResponder()
+        } else {
+            searchField.resignFirstResponder()
+            searchField.text = nil
+            searchScope = "All"
+            searchHeader.isHidden = true
+            normalHeader.isHidden = false
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Search", style: .default) { [weak self, weak alert] _ in
-            self?.query = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            self?.applyFilters()
-        })
-        if !query.isEmpty {
-            alert.addAction(UIAlertAction(title: "Clear search", style: .default) { [weak self] _ in
-                self?.query = ""
-                self?.applyFilters()
-            })
+        UIView.animate(withDuration: animated ? 0.24 : 0, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.searchField.transform = .identity
+            self.searchPanel.alpha = open ? 1 : 0
+            self.pager.view.alpha = open ? 0.5 : 1
+            self.view.layoutIfNeeded()
+        } completion: { _ in
+            if self.searching == open { self.searchPanel.isHidden = !open }
         }
-        present(alert, animated: true)
+        playbackVisibilityChanged()
+    }
+
+    private func renderSearchResults() {
+        guard searching else { return }
+        searchContent.clear()
+        let categories = ["All", "Film Clip", "Cosplay Video", "Saved"]
+        let names = ["All", "Clips", "Cosplay", "Saved"]
+        let filters = Theme.stack(zip(categories, names).map { scope, name in
+            Theme.button(name, accent: searchScope == scope) { [weak self] in
+                self?.searchScope = scope
+                self?.renderSearchResults()
+            }
+        }, spacing: 5, axis: traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal)
+        filters.distribution = .fillEqually
+        searchContent.addArrangedSubview(filters)
+        let query = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let matches = catalog.filter { short in
+            let item = short.item
+            let inScope = searchScope == "All" || searchScope == item.kind ||
+                (searchScope == "Saved" && reactions[item.id]?.contains("save") == true)
+            return inScope && (query.isEmpty || "\(item.title) \(item.description) \(item.credit)".localizedCaseInsensitiveContains(query))
+        }
+        guard !matches.isEmpty else {
+            searchContent.addArrangedSubview(Theme.empty(loaded ? "No matching shorts" : "Shorts are unavailable",
+                                                         loaded ? "Try another search or category." : "Return to Shorts and try again."))
+            return
+        }
+        addVideoTiles(matches.map(\.item), to: searchContent, accessible: traitCollection.preferredContentSizeCategory.isAccessibilityCategory) { [weak self] item in
+            guard let self else { return }
+            if let kind = self.kind, kind != item.kind { self.kind = nil }
+            self.applyFilters(preferredID: item.id)
+            self.setSearchOpen(false)
+        }
+    }
+
+    private func showComments(_ item: CatalogItem) {
+        guard !paging, presentedViewController == nil else { return }
+        let page = CommentsPage(item: item, api: api, sheet: true) {
+            [weak self] in self?.refreshCounts()
+        }
+        let navigation = UINavigationController(rootViewController: page)
+        navigation.setNavigationBarHidden(true, animated: false)
+        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium()]
+            sheet.prefersGrabberVisible = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        }
+        present(navigation, animated: true)
+    }
+
+    private func showEditorialProfile(_ item: CatalogItem) {
+        let videos = catalog.map(\.item).filter { $0.publisherId == nil && $0.creatorName == item.creatorName }
+        let profile = EditorialShortsProfile(item: item, videos: videos, api: api) { [weak self] item in
+            guard let self else { return }
+            if let kind = self.kind, kind != item.kind { self.kind = nil }
+            self.applyFilters(preferredID: item.id)
+            self.navigationController?.popToViewController(self, animated: true)
+        }
+        navigationController?.pushViewController(profile, animated: true)
+    }
+
+    private func refreshCounts() {
+        let ids = catalog.map { $0.item.id }
+        guard !ids.isEmpty else { return }
+        countsTask?.cancel()
+        countsTask = Task { [weak self, api] in
+            guard (try? await api.shortCounts(ids)) != nil, let self, !Task.isCancelled else { return }
+            self.renderReactions()
+        }
+    }
+
+    private func refreshVisibleCatalog() {
+        visibleCatalogTask?.cancel()
+        visibleCatalogTask = Task { [weak self, api] in
+            guard let self, let rows = try? await api.catalog(), !Task.isCancelled, self.visible else { return }
+            let updated = rows.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
+            let oldIDs = self.catalog.map { $0.item.id }
+            self.catalog = updated
+            if oldIDs != updated.map({ $0.item.id }) {
+                self.applyFilters()
+                self.refreshCounts()
+            }
+            self.renderSearchResults()
+        }
     }
 
     private func filter() {
@@ -541,9 +849,18 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         sheet.popoverPresentationController?.sourceRect = button.bounds
         overlayOpen = true
         playbackVisibilityChanged()
-        sheet.completionWithItemsHandler = { [weak self] _, _, _, _ in
-            self?.overlayOpen = false
-            self?.playbackVisibilityChanged()
+        let event = UUID()
+        sheet.completionWithItemsHandler = { [weak self] _, completed, _, _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.overlayOpen = false
+                self.playbackVisibilityChanged()
+                guard completed else { return }
+                do {
+                    try await self.api.recordShortShare(item.id, event: event)
+                    self.refreshCounts()
+                } catch { self.showAlert("Your share finished, but the count could not be updated.") }
+            }
         }
         present(sheet, animated: true)
     }

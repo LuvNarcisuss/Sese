@@ -3,7 +3,7 @@ import UIKit
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {}
 
-final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControllerDelegate {
     var window: UIWindow?
     private var api: CommunityAPI?
     private let wallet = Wallet()
@@ -36,6 +36,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let api, let memberID = api.memberID else { return }
         wallet.bind(memberID)
         let tabs = UITabBarController()
+        tabs.delegate = self
         let pages: [(UIViewController, String, String)] = [
             (ShortsFeedPage(api: api), "Shorts", "shorts"),
             (DistrictMapPage(memberID: memberID, wallet: wallet, api: api), "Districts", "districts"),
@@ -66,6 +67,15 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         tabs.tabBar.standardAppearance = appearance
         tabs.tabBar.scrollEdgeAppearance = appearance
         window?.rootViewController = tabs
+    }
+
+    func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {
+        if tabBarController.selectedViewController !== viewController,
+           let navigation = viewController as? UINavigationController,
+           let shorts = navigation.viewControllers.first as? ShortsFeedPage {
+            shorts.returnFromCreatorProfileIfNeeded()
+        }
+        return true
     }
 
     private func navigation(_ root: UIViewController) -> UINavigationController {

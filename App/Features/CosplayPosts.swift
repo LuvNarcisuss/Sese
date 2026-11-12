@@ -307,6 +307,7 @@ final class CosplayPostPage: CityPage {
     private let media = Theme.stack()
     private var temporaryVideo: URL?
     private var loading = false
+    private var engagement: PublicationReactionBar?
 
     init(post: CosplayPost, api: CommunityAPI) {
         self.post = post
@@ -350,12 +351,18 @@ final class CosplayPostPage: CityPage {
             self.present(UIActivityViewController(activityItems: [url], applicationActivities: nil), animated: true)
         })
         if post.mediaKind == .video {
+            if post.status == "approved" {
+                let bar = PublicationReactionBar(api: api, source: .cosplay, item: post.id)
+                body.addArrangedSubview(bar.view)
+                engagement = bar
+            }
             media.addArrangedSubview(Theme.button("Play video", accent: true) { [weak self] in self?.loadMedia() })
         }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        engagement?.load()
         if post.mediaKind == .photo, post.status != "removed", media.arrangedSubviews.isEmpty { loadMedia() }
     }
 

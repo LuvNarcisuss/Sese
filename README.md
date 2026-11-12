@@ -8,11 +8,11 @@ A fresh build fetches and verifies the launcher icon from Sese's Supabase projec
 
 | Tab | Features |
 | --- | --- |
-| Shorts | The first tab opens a full-screen vertical feed of licensed costume and fan-culture clips, with photo avatars that open credited editorial creator pages, search, filters, likes, saves, comments, sharing, reporting, and access to member video submissions. |
-| Districts | Tap four districts on the city map. City Center starts open. Unlock Sahara Square, Tundratown, and Rainforest District with 30, 45, and 60 diamonds respectively, then explore their landmarks and existing guides. |
-| Cosplay | Browse editorial and approved member photos and videos. Submit a photo or a video from Photos, preview it, and track review status in My posts and Me → Works. |
+| Shorts | The first tab opens a full-screen vertical feed of licensed costume and fan-culture clips, with creator profiles, an expandable search bar, and a half-height comments sheet that keeps the clip playing. The action column displays likes, comments, saves, and completed shares. |
+| Districts | Tap four districts on the city map. City Center starts open. Unlock Sahara Square, Tundratown, and Rainforest District with 30, 45, and 60 diamonds respectively, then explore six places in each district through its street map or categorized list. Mark stops as visited to track progress, and open the existing district guides. Build a named district for 120 diamonds with a desert, snow, or forest theme and up to six selectable places. Built districts, visit progress, and wallet debits are stored on this device for the signed-in account. |
+| Cosplay | Browse editorial and approved member photos and videos. Submit a photo or a video from Photos, preview it, and track review status in My posts and Me → Cosplay. |
 | Chats | Real mutual friends appear before their first message. An invitation appears when there are no friends. The filter opens Conversations and Archived for message history. Member discovery, text and photo messaging, Realtime updates, unread state, pin, mute, archive, and reporting are available. |
-| Me | Profile identity and relationship counts, saves, likes, works, wallet, and Settings. |
+| Me | Avatar, bio, received likes and saves, following, wallet, and Settings. Switch between Shorts, Cosplay, Liked, and Saved in one row. The Shorts and Cosplay cards provide creation actions and explain what appears in an empty gallery. |
 
 Shorts plays licensed portrait MP4s from Sese's Supabase Storage. AVPlayer loops the visible clip behind the toolbar and translucent tab bar. A cover appears while playback loads, and a progress line tracks the clip. Tap the video to pause and tap Play to resume. The video options show the source and license. Existing publisher entries retain their catalog IDs and source links for saved items and Cosplay details.
 

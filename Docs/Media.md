@@ -60,3 +60,13 @@ The interactive city map uses an ImageGen 4:3 aerial illustration of City Center
 - The two gallery photos and 21 generated images are stored in Sese's `editorial` bucket. The gallery, member avatar choices, and interface artwork load over HTTPS with an in-memory image cache. Chat attachments use the private `chat-photos` bucket.
 - The Xcode target fetches `launcher.png` and verifies the manifest SHA-256 before asset catalog compilation. Xcode's `AppIcon` catalog keeps its JSON descriptor in Git and uses the ignored `Art.png` as a generated build input. A clean build needs HTTPS access to Sese's Supabase Storage.
 - For Shorts replacements, download a licensed source into a temporary directory. Inspect representative frames and export a 9:16 fast-start MP4 and a matching JPEG. Upload both to a versioned Storage path and verify public HTTPS, SHA-256, and MP4 byte-range support before switching catalog references. Record the source, license and edits in the manifest, then remove the temporary copies. Keep image and video payloads out of Git.
+
+## Shorts reaction artwork
+
+`App/CommunityContent/ReactionArtwork.plist` contains text-encoded 144-pixel copies of the four individual ImageGen assets used for Like, Liked, Save, and Saved. The existing filled originals were verified against `Docs/Artwork.json`. The outline artwork retains the original ImageGen source and planned Storage paths in the same manifest. Using these copies for controls keeps all four states available on first render, including before the two outline originals are published. The application still uses the existing 48-point icon targets.
+
+
+The reaction loader measures these bundled variants by their visible silhouette rather than the original padded canvas. The Like and Liked states share a 48-by-44-point presentation; Save and Saved share a 32-by-48-point presentation inside the same 48-point button. Source-specific content bounds exclude transparent margins and peripheral glow. UIKit prepares these display copies once in memory from the original, individually generated art; no source artwork is replaced. If the bundled images change, update and visually verify the four content bounds together.
+
+
+Verified on November 12, 2026 on Sese UI Acceptance (iPhone 17 Pro) using the current workspace build. Serial UI testing toggled and restored both reactions, confirmed acknowledged count updates and creator totals, and captured the original and toggled states. Visual comparison confirmed matching heart and bookmark footprints across states. Evidence: `/private/tmp/SeseReactionSize.xcresult` and `/private/tmp/sese-reaction-size-screens/`. The test passed with zero failures and preserved the initial reaction states.

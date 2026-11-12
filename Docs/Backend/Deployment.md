@@ -78,3 +78,33 @@ Migration `011` and version 1 of `device-sign-in` were deployed. Before agreemen
 Before agreement activation, a read-only database check confirmed the composite consent key, both new avatar IDs, and ten catalog records. The public Auth settings again returned HTTP 200 with anonymous sign-ins disabled. The two avatar crop previews were checked visually.
 
 See [simulator acceptance](../SimulatorAcceptance.md) for the published agreement links and successful first and repeat device sign-in against the live backend. Account deletion, other authenticated features, and StoreKit transactions require separate acceptance.
+
+## Shorts engagement migration
+
+After explicit owner approval, migration `016_shorts_engagement.sql` was deployed to production on November 12, 2026 as `20261112080620`. It passed verification in an isolated PostgreSQL database before deployment. Storage policies are unchanged. It adds authenticated aggregate counts, an idempotent event for completed shares, and reactions for approved member Shorts and Cosplay videos. Received likes and saves sum those approved videos and any catalog videos assigned to the member. The migration does not assign source credits to member accounts.
+
+The four hosted editorial clips have fixed, labeled display estimates between 20 and 50 for likes, saves, and shares. Their recorded interactions are added to those estimates. Comments never use display estimates: their count is the number of comment rows visible to the caller. Migration 016 generates no members, comments, or relationship rows. Editorial sources keep their attribution pages. Follow, Message, and Block use existing member accounts and the current mutual-follow chat rule.
+
+The generated inactive reaction PNGs are ready for an authorized Storage upload. In the existing public `editorial` bucket, place them under `shorts/ui/25cfb986-9b53-4dbe-b40d-f6f63f0171b5/` using the names and hashes in `Docs/Artwork.json`. Use an existing authenticated project operator. Verify both public reads against their hashes before release.
+
+If the aggregate route is unavailable with HTTP 404, the app can display its labeled editorial estimates plus the current member’s acknowledged likes and saves, the exact count of comments visible to that member, and completed shares recorded on this device. Shorts and editorial creator pages read the same cached values. Each completed share keeps a stable event ID and is submitted when the aggregate API is available. This fallback does not claim global totals. Member profiles with no published videos display zero received likes and saves.
+
+
+## Prepared editorial discussions
+
+At the owner's explicit request, migration `017_editorial_comments.sql` was deployed on November 12, 2026 as `20261112081207`. It adds 93 English, clip-specific prepared discussion entries: 24 for `fox-costume-in-motion`, 22 for `narcon-conga-line`, 26 for `costume-meetup-hug`, and 21 for `ask-before-you-snap`. Entries display the byline **Sese Editorial**. They are authored product content, not member activity or comments attributed to the original video creators. No Auth users or profiles are created.
+
+Editorial entries have a unique stable `editorial_key` and no member author. A check constraint keeps editorial and member authorship mutually exclusive. Existing member-only column grants and RLS prevent clients from writing editorial keys, editing editorial entries, or deleting them as their own comments. Reporting remains available through the existing comment report path. The seed insert is idempotent. Existing comments and their authors remain unchanged.
+
+The feed count, list total, and rows all derive from the same comment table and visibility rules. The app reads all comment pages with a stable creation-time and ID order. Posting and deletion refresh the list and feed after acknowledged writes. The bundled fallback sets editorial comment estimates to zero and obtains the actual count from the server.
+
+Production readback under the authenticated role confirmed 24/22/26/21 visible rows and matching aggregate counts, with no duplicate bodies within any clip. Isolated PostgreSQL tests covered idempotent seeding, 24 -> 25 -> 24 after adding/removing a member comment, forbidden editorial impersonation, and protection from member deletion.
+
+The post-deployment security advisor reported existing notices for the consent table's intentionally absent client policy, authenticated definer RPCs, and disabled leaked-password protection. The new aggregate wrappers are invoker functions; their private implementations validate authentication. See the [definer function advisory](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) for the existing RPC review guidance. No unrelated Auth or Storage settings were changed.
+
+
+### Simulator verification after deployment
+
+On November 12, 2026, the current workspace was built and installed on **Sese UI Acceptance**, iPhone 17 Pro, UDID `0E1EA5DB-DDE2-460C-A8C9-C5E400CF1B96`. Serial XCTest verified the prepared discussion byline and content, the live comment total changing 24 -> 25 -> 24 after publishing and deleting a test comment, and agreement between the sheet total and the feed button. A discovered composer bug was corrected: long input can no longer compress the Post button to zero width. The final targeted test passed with zero failures. Evidence: `/private/tmp/SeseCommentComposerFinal.xcresult` and `/private/tmp/sese-comment-composer-test.log`.
+
+The preceding run verified acknowledged likes 43 -> 44 -> 43, saves 36 -> 37 -> 36, matching creator totals, and returning from another tab to the original video instead of the creator page. It also verified the comments sheet starting at 48% of screen height and continuing video motion across all captured frames. Evidence: `/private/tmp/SeseEditorialCommentsRetry.xcresult`; its comment-post test exposed the composer issue and was superseded by the passing targeted result above. An initial run was interrupted by an old defunct app process; restarting only the named simulator preserved its data and resolved that environment issue.

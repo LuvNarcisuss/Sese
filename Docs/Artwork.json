@@ -299,5 +299,33 @@
     "source_sha256": "9ea658be4934d5601d369d154f7a1e07105de3d7b5780c7d442df1e2d919c75b",
     "storage_path": "editorial/exploration/6815e1a4-202e-48c4-9468-23c68d6151c5/city-map.jpg",
     "sha256": "bb2cf9a126ba1fed4ed41769023031cc1020519f63f9a84db2a7e3b1f6a0d17e"
+  },
+  "like-outline": {
+    "subject": "Open pearl and coral heart for an inactive Like action.",
+    "source": "exec-7702375e-8f96-4dd9-8faa-15a9cf0224a0.png",
+    "source_sha256": "58306e78c842b450eb7abfa019c2fff5e949645b90ac1c2f848b713a2a713d6b",
+    "sha256": "3ffdc9f4d5e29f7477a3e3d0e6fa6b1963b13a4ddbbe85dbcf1014301f874cec",
+    "generator": "ImageGen",
+    "palette": "cream, coral, violet, amber",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "storage_path": "editorial/shorts/ui/25cfb986-9b53-4dbe-b40d-f6f63f0171b5/like-outline.png",
+    "status": "awaiting_upload"
+  },
+  "save-outline": {
+    "subject": "Open pearl and violet bookmark for an inactive Save action.",
+    "source": "exec-d07bf81d-1cea-4919-86ab-41d34a6abc46.png",
+    "source_sha256": "acc6682075205f5e136cf1fca2daf763dfb68ab2b55f92de7b862dc3168a9603",
+    "sha256": "3017a31e1b21db5ec0f56214a20afd4fce0010bdf5e0611996c2351553c58955",
+    "generator": "ImageGen",
+    "palette": "cream, coral, violet, amber",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "storage_path": "editorial/shorts/ui/25cfb986-9b53-4dbe-b40d-f6f63f0171b5/save-outline.png",
+    "status": "awaiting_upload"
   }
 }
