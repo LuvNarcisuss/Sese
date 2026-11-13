@@ -1,12 +1,9 @@
 #!/bin/sh
 set -eu
 
-configuration="$1"
+encoded_source="$1"
 manifest="$2"
 output="$3"
-
-project_url=$(/usr/bin/plutil -extract url raw "$configuration")
-object_path=$(/usr/bin/plutil -extract launcher.storage_path raw "$manifest")
 expected=$(/usr/bin/plutil -extract launcher.sha256 raw "$manifest")
 
 digest() {
@@ -17,19 +14,14 @@ if [ -f "$output" ] && [ "$(digest "$output")" = "$expected" ]; then
     exit 0
 fi
 
-download=$(/usr/bin/mktemp "${TMPDIR:-/tmp}/sese-app-icon.XXXXXX")
-trap 'rm -f "$download"' EXIT
+prepared=$(/usr/bin/mktemp "${TMPDIR:-/tmp}/sese-app-icon.XXXXXX")
+trap 'rm -f "$prepared"' EXIT
+/usr/bin/base64 --decode -i "$encoded_source" -o "$prepared"
 
-if ! /usr/bin/curl --proto '=https' --fail --silent --show-error \
-    --retry 2 --connect-timeout 10 --max-time 30 --output "$download" \
-    "${project_url%/}/storage/v1/object/public/$object_path"; then
-    echo "error: Could not download the Sese app icon from Supabase." >&2
-    exit 1
-fi
-
-if [ "$(digest "$download")" != "$expected" ]; then
+if [ "$(digest "$prepared")" != "$expected" ]; then
     echo "error: The Sese app icon does not match its artwork manifest." >&2
     exit 1
 fi
 
-/bin/mv -f "$download" "$output"
+/bin/mkdir -p "$(/usr/bin/dirname "$output")"
+/bin/mv -f "$prepared" "$output"

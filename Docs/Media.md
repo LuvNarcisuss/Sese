@@ -49,7 +49,7 @@ The following sources are retained for selection. Preview-frame or photo-byte re
 
 ## Generated artwork and type
 
-ImageGen generated every navigation icon, toolbar icon, launcher icon, portrait background, and district image separately. The [artwork manifest](Artwork.json) records the source, Storage object paths, and hashes. The interface uses Fredoka and Comic Neue, with their SIL Open Font License files in the font resource folder. UIKit-provided system surfaces follow the operating system's accessibility and typography behavior.
+ImageGen generated every navigation icon, toolbar icon, portrait background, and district image separately. The launcher was replaced with owner-supplied artwork on November 13, 2026. The [artwork manifest](Artwork.json) records the source, Storage object paths, and hashes. The interface uses Fredoka and Comic Neue, with their SIL Open Font License files in the font resource folder. UIKit-provided system surfaces follow the operating system's accessibility and typography behavior.
 
 ## City exploration and wallet artwork
 
@@ -58,7 +58,7 @@ The interactive city map uses an ImageGen 4:3 aerial illustration of City Center
 ## Storage and build delivery
 
 - The two gallery photos and 21 generated images are stored in Sese's `editorial` bucket. The gallery, member avatar choices, and interface artwork load over HTTPS with an in-memory image cache. Chat attachments use the private `chat-photos` bucket.
-- The Xcode target fetches `launcher.png` and verifies the manifest SHA-256 before asset catalog compilation. Xcode's `AppIcon` catalog keeps its JSON descriptor in Git and uses the ignored `Art.png` as a generated build input. A clean build needs HTTPS access to Sese's Supabase Storage.
+- The Xcode target decodes `Configuration/AppIcon.base64` and verifies the launcher SHA-256 in `Docs/Artwork.json` before asset catalog compilation. The owner-supplied launcher is preserved as a tracked text build input; the reconstructed `AppIcon.appiconset/Art.png` remains ignored. Icon preparation works offline and never downloads the superseded launcher.
 - For Shorts replacements, download a licensed source into a temporary directory. Inspect representative frames and export a 9:16 fast-start MP4 and a matching JPEG. Upload both to a versioned Storage path and verify public HTTPS, SHA-256, and MP4 byte-range support before switching catalog references. Record the source, license and edits in the manifest, then remove the temporary copies. Keep image and video payloads out of Git.
 
 ## Shared icon artwork
@@ -86,3 +86,9 @@ The latest owner preference is a smaller global footprint: 40 points for visible
 ### Final 40-point acceptance
 
 On November 12, 2026, the current workspace build and the UI test runner build succeeded. Two serial UI tests passed with zero failures on Sese UI Acceptance (iPhone 17 Pro): `testGlobalIconScreens` and `testIconsCountsCreatorTotalsAndTabReturn`. The test runner used the app built from the main workspace. Screenshots covered entry, all five tabs, wallet, settings, and both reaction states. Visual review confirmed the 40-point artwork, readable tab labels, consistent wallet diamonds, and matching saved/unsaved footprints. Both reactions were restored after the count and creator-total checks. No purchase was initiated by these tests. Evidence: `/private/tmp/SeseIcons40Acceptance.xcresult`, `/private/tmp/sese-icons-40-screens/`, and `/private/tmp/sese-icons-40-acceptance.log`. This is focused icon and navigation acceptance, not a new full application or production-payment certification.
+
+## Owner-supplied launcher replacement
+
+On November 13, 2026, the owner provided `/Users/apple/Downloads/241/logo.png` and requested it as the Sese app logo. The 1024-by-1024 image is used uncropped and unscaled. Its alpha channel was fully opaque; the build input removes that redundant channel without changing any RGB pixels. `Docs/Artwork.json` records the source and prepared hashes and preserves the former launcher record under `supersedes`. The supplied Downloads file is unchanged.
+
+Verification: decoded the tracked source through the actual preparation script into a fresh temporary output, verified its digest, dimensions, RGB pixel equality and lack of alpha, then verified the repeat preparation path. The AppIcon descriptor and both project configurations refer to the prepared asset. This replacement did not include an app build, simulator installation, or App Store publication.

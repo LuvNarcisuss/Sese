@@ -206,7 +206,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4CEDF4B9C3610EC310E97CFA /* Build configuration list for PBXNativeTarget "Sese" */;
 			buildPhases = (
-				D571C79363165E0B64468C2F /* Fetch App Icon */,
+				D571C79363165E0B64468C2F /* Prepare App Icon */,
 				1C6A1582A4BE80F174F07B82 /* Sources */,
 				20060B66AB93808FF20BC15F /* Resources */,
 				F14D5959037A227FB7CEFA7C /* Frameworks */,
@@ -281,7 +281,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		D571C79363165E0B64468C2F /* Fetch App Icon */ = {
+		D571C79363165E0B64468C2F /* Prepare App Icon */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -291,10 +291,10 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/Scripts/fetch_app_icon.sh",
-				"$(SRCROOT)/App/CommunityContent/Backend.json",
+				"$(SRCROOT)/Configuration/AppIcon.base64",
 				"$(SRCROOT)/Docs/Artwork.json",
 			);
-			name = "Fetch App Icon";
+			name = "Prepare App Icon";
 			outputFileListPaths = (
 			);
 			outputPaths = (

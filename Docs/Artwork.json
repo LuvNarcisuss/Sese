@@ -182,17 +182,30 @@
     "sha256": "16c20ab05c27eee6f2340db88544e3509448ae34857e48c21f8c08dbfe88915d"
   },
   "launcher": {
-    "generator": "ImageGen",
-    "subject": "Opaque violet skyline, rabbit ears, and fox-tail emblem.",
-    "palette": "violet, mint, cream, amber",
-    "source": "exec-ff6954ff-c085-4b22-8dd5-6fc2ac1bdb00.png",
+    "source": "/Users/apple/Downloads/241/logo.png",
+    "provenance": "Owner-supplied replacement on November 13, 2026.",
+    "subject": "White Sese lettering on a pink and violet gradient.",
     "source_dimensions": [
-      1254,
-      1254
+      1024,
+      1024
     ],
-    "source_sha256": "e7042511a0a7e1c85d22adce7357c572cc7fa3c9be6fe3d0ca57b9d955f4b4ed",
-    "storage_path": "editorial/sese-media-v1/launcher.png",
-    "sha256": "398e44fb68b962153fe1aca0a2346135e0fcb82296b6a6f81d3cf5ccf0fca000"
+    "source_sha256": "bc08c3d4f95ea09617a3fc97e0d64f143df9b0ece8c10da05ce21e4c975628ed",
+    "bundled_source": "Configuration/AppIcon.base64",
+    "sha256": "464b8cc7608560430d1e93636a6089a4aa39b8c8a6aac2cab624e7c661b6e1c7",
+    "processing": "Removed the fully opaque alpha channel without changing RGB pixels. No crop or resizing.",
+    "supersedes": {
+      "generator": "ImageGen",
+      "subject": "Opaque violet skyline, rabbit ears, and fox-tail emblem.",
+      "palette": "violet, mint, cream, amber",
+      "source": "exec-ff6954ff-c085-4b22-8dd5-6fc2ac1bdb00.png",
+      "source_dimensions": [
+        1254,
+        1254
+      ],
+      "source_sha256": "e7042511a0a7e1c85d22adce7357c572cc7fa3c9be6fe3d0ca57b9d955f4b4ed",
+      "storage_path": "editorial/sese-media-v1/launcher.png",
+      "sha256": "398e44fb68b962153fe1aca0a2346135e0fcb82296b6a6f81d3cf5ccf0fca000"
+    }
   },
   "background": {
     "generator": "ImageGen",

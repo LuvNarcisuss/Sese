@@ -35,12 +35,12 @@ targets:
         type: folder
         buildPhase: resources
     preBuildScripts:
-      - name: Fetch App Icon
+      - name: Prepare App Icon
         script: |
           /bin/sh "$SCRIPT_INPUT_FILE_0" "$SCRIPT_INPUT_FILE_1" "$SCRIPT_INPUT_FILE_2" "$SCRIPT_OUTPUT_FILE_0"
         inputFiles:
           - $(SRCROOT)/Scripts/fetch_app_icon.sh
-          - $(SRCROOT)/App/CommunityContent/Backend.json
+          - $(SRCROOT)/Configuration/AppIcon.base64
           - $(SRCROOT)/Docs/Artwork.json
         outputFiles:
           - $(SRCROOT)/App/Assets.xcassets/AppIcon.appiconset/Art.png
