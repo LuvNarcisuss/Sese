@@ -1,0 +1,73 @@
+workflows:
+  sese-ios-app-store: &sese_app_store
+    name: Sese iOS App Store
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: Sese
+
+    environment:
+      xcode: "26.5"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sese.citycommunit
+      vars:
+        XCODE_PROJECT: "Sese.xcodeproj"
+        XCODE_SCHEME: "Sese"
+        APP_STORE_APPLE_ID: "6834244866"
+
+    scripts:
+      - name: Apply App Store signing profiles
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          xcode-project use-profiles --project "$CM_BUILD_DIR/$XCODE_PROJECT"
+
+      - name: Set next App Store build number
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          LATEST_BUILD_NUMBER="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --platform IOS --all-versions)"
+          LATEST_BUILD_NUMBER="${LATEST_BUILD_NUMBER:-0}"
+          CI_BUILD_NUMBER="${BUILD_NUMBER:-1}"
+
+          if [[ ! "$LATEST_BUILD_NUMBER" =~ ^[0-9]+$ || ! "$CI_BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Expected numeric App Store Connect and Codemagic build numbers." >&2
+            exit 1
+          fi
+
+          NEXT_BUILD_NUMBER=$((10#$LATEST_BUILD_NUMBER + 1))
+          if (( 10#$CI_BUILD_NUMBER > NEXT_BUILD_NUMBER )); then
+            NEXT_BUILD_NUMBER=$((10#$CI_BUILD_NUMBER))
+          fi
+
+          echo "Using build number: $NEXT_BUILD_NUMBER"
+          echo "SESE_BUILD_NUMBER=$NEXT_BUILD_NUMBER" >> "$CM_ENV"
+
+      - name: Build signed Release IPA
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --config Release \
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$SESE_BUILD_NUMBER" \
+            --ipa-directory "$CM_BUILD_DIR/build/ios/ipa"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/xcarchive/*.xcarchive/dSYMs/*.dSYM
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
+
+  sese-ios-signing-validation:
+    <<: *sese_app_store
+    name: Sese iOS Signing Validation
+    publishing: {}
