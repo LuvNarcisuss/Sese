@@ -22,7 +22,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControlle
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        if let id = api?.memberID { wallet.recover(for: id) }
+        if let api, let id = api.memberID {
+            wallet.recover(for: id)
+            Task { await api.reconcileSafety() }
+        }
     }
 
     private func showWelcome() {
@@ -70,6 +73,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControlle
         tabs.tabBar.standardAppearance = appearance
         tabs.tabBar.scrollEdgeAppearance = appearance
         window?.rootViewController = tabs
+        Task { await api.reconcileSafety() }
     }
 
     func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {

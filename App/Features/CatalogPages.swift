@@ -34,7 +34,60 @@ enum CatalogSection {
     }
 }
 
-final class CatalogPage: CityPage {
+@MainActor
+protocol SafetyObserving: AnyObject {
+    func safetyDidChange()
+}
+
+extension UIViewController {
+    func confirmMemberBlock(_ peer: UUID, api: CommunityAPI, comment: UUID? = nil) {
+        let prompt = UIAlertController(title: "Block this member?", message: "Their posts and comments will be hidden.",
+                                       preferredStyle: .alert)
+        prompt.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        prompt.addAction(UIAlertAction(title: "Block", style: .destructive) { [weak self] _ in
+            Task { @MainActor in
+                do { try await api.blockMember(peer, comment: comment) }
+                catch {
+                    guard let self, self.viewIfLoaded?.window != nil else { return }
+                    let alert = UIAlertController(title: "Could not block member", message: error.localizedDescription,
+                                                  preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(alert, animated: true)
+                }
+            }
+        })
+        present(prompt, animated: true)
+    }
+}
+
+extension CityPage {
+    func observeSafetyChanges() {
+        NotificationCenter.default.addObserver(self, selector: #selector(receiveSafetyChange(_:)),
+                                               name: CommunityAPI.safetyChanged, object: nil)
+    }
+
+    @objc private func receiveSafetyChange(_ notification: Notification) {
+        guard (notification.object as? CommunityAPI) === api else { return }
+        (self as? SafetyObserving)?.safetyDidChange()
+    }
+
+    // Remove a detail even when it sits underneath another tab or a presented player.
+    func closeHiddenContent() {
+        body.isHidden = true
+        actions.isHidden = true
+        view.endEditing(true)
+        if let player = presentedViewController as? AVPlayerViewController { player.player?.pause() }
+        presentedViewController?.dismiss(animated: false)
+        guard let navigation = navigationController else { return }
+        if navigation.viewControllers.first === self {
+            if navigation.presentingViewController != nil { navigation.dismiss(animated: false) }
+        } else if navigation.viewControllers.contains(where: { $0 === self }) {
+            navigation.setViewControllers(navigation.viewControllers.filter { $0 !== self }, animated: false)
+        }
+    }
+}
+
+final class CatalogPage: CityPage, SafetyObserving {
     private let section: CatalogSection
     private let grid = Theme.stack()
     private let cosplayGrid = Theme.stack()
@@ -55,8 +108,17 @@ final class CatalogPage: CityPage {
     }
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        items.removeAll { api.isHidden($0) }
+        publicPosts.removeAll { api.isHidden($0) }
+        ownPosts.removeAll { api.isHidden($0) }
+        render()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         actions.addArrangedSubview(Theme.icon("search", label: "Search") { [weak self] in
             guard let self else { return }
             self.searchField.isHidden.toggle()
@@ -103,7 +165,7 @@ final class CatalogPage: CityPage {
         let matches = posts.filter { post in
             let correctKind = (scope != "Cosplay Look" || post.mediaKind == .photo) &&
                 (scope != "Cosplay Video" || post.mediaKind == .video)
-            return correctKind && (query.isEmpty ||
+            return !api.isHidden(post) && correctKind && (query.isEmpty ||
                 "\(post.title) \(post.caption) \(post.author?.displayName ?? "")".localizedCaseInsensitiveContains(query))
         }
         if cosplayFailure {
@@ -193,7 +255,7 @@ final class CatalogPage: CityPage {
         let query = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let filtered = items.filter { item in
             let matchesScope = scope == "All" || (scope == "Saved" ? saved.contains(item.id) : item.kind == scope)
-            return matchesScope && (query.isEmpty || "\(item.title) \(item.description) \(item.credit)".localizedCaseInsensitiveContains(query))
+            return !api.isHidden(item) && matchesScope && (query.isEmpty || "\(item.title) \(item.description) \(item.credit)".localizedCaseInsensitiveContains(query))
         }
         grid.clear()
         guard !filtered.isEmpty else {
@@ -239,9 +301,10 @@ final class CatalogPage: CityPage {
     }
 }
 
-final class CatalogDetail: CityPage {
+final class CatalogDetail: CityPage, SafetyObserving {
     private var items: [CatalogItem]
     private var index: Int
+    private let originalIDs: [String]
     private var item: CatalogItem { items[index] }
     private var reactions: Set<String> = []
     private var reactionTask: Task<Void, Never>?
@@ -251,13 +314,27 @@ final class CatalogDetail: CityPage {
     init(items: [CatalogItem], index: Int, api: CommunityAPI) {
         self.items = items
         self.index = index
+        originalIDs = items.map(\.id)
         super.init(items[index].isVideo ? "Watch" : items[index].kind, api: api)
     }
 
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        reactionTask?.cancel()
+        if api.isHidden(item) { closeHiddenContent(); return }
+        let selectedID = item.id
+        items.removeAll { api.isHidden($0) }
+        guard let selected = items.firstIndex(where: { $0.id == selectedID }) else { closeHiddenContent(); return }
+        index = selected
+        render()
+        loadReactions(reloadItem: true)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isHidden(item) else { closeHiddenContent(); return }
         render()
         enableRefresh { [weak self] in self?.loadReactions(reloadItem: true) }
     }
@@ -296,15 +373,15 @@ final class CatalogDetail: CityPage {
         renderReactions()
         let tools = Theme.stack([
             Theme.button("Share", icon: "share") { [weak self] in self?.share(selected.sourceUrl) },
-            Theme.button("Report") { [weak self] in self?.report(["catalog_id": selected.id]) }
+            Theme.button("Report") { [weak self] in self?.report(["catalog_id": selected.id], video: selected.isVideo) }
         ], axis: .horizontal)
         tools.distribution = .fillEqually
         body.addArrangedSubview(tools)
         if items.count > 1 {
             let previous = Theme.button("Previous") { [weak self] in self?.move(-1) }
             let next = Theme.button("Next") { [weak self] in self?.move(1) }
-            previous.isEnabled = index > 0
-            next.isEnabled = index + 1 < items.count
+            previous.isEnabled = items.prefix(index).contains { !api.isHidden($0) }
+            next.isEnabled = items.dropFirst(index + 1).contains { !api.isHidden($0) }
             let controls = Theme.stack([previous, next], axis: .horizontal)
             controls.distribution = .fillEqually
             body.addArrangedSubview(controls)
@@ -315,8 +392,10 @@ final class CatalogDetail: CityPage {
     @objc private func previousItem() { move(-1) }
 
     private func move(_ offset: Int) {
-        guard items.indices.contains(index + offset) else { return }
-        index += offset
+        var candidate = index + offset
+        while items.indices.contains(candidate), api.isHidden(items[candidate]) { candidate += offset }
+        guard items.indices.contains(candidate) else { return }
+        index = candidate
         reactions = []
         render()
         scroll.setContentOffset(.zero, animated: false)
@@ -346,8 +425,11 @@ final class CatalogDetail: CityPage {
                 if reloadItem {
                     let catalog = try await api.catalog()
                     try Task.checkCancellation()
-                    guard let updated = catalog.first(where: { $0.id == id }) else { throw CommunityError.unavailable }
-                    items[index] = updated
+                    let available = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
+                    let visible = originalIDs.compactMap { available[$0] }.filter { !api.isHidden($0) }
+                    guard let position = visible.firstIndex(where: { $0.id == id }) else { closeHiddenContent(); return }
+                    items = visible
+                    index = position
                     render()
                 }
                 let values = try await self.api.reactions()
@@ -398,7 +480,7 @@ final class CatalogDetail: CityPage {
     }
 }
 
-final class CommentsPage: CityPage {
+final class CommentsPage: CityPage, SafetyObserving {
     private let item: CatalogItem
     private let list = Theme.stack()
     private let input = Theme.field("Write a comment")
@@ -417,8 +499,17 @@ final class CommentsPage: CityPage {
     }
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        if api.isHidden(item) { loadTask?.cancel(); closeHiddenContent(); return }
+        displayedRows.removeAll { $0.authorId.map(api.isBlocked) == true }
+        renderRows()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isHidden(item) else { closeHiddenContent(); return }
         if sheet {
             actions.addArrangedSubview(Theme.textAction("Done") { [weak self] in self?.navigationController?.dismiss(animated: true) })
         }
@@ -443,34 +534,9 @@ final class CommentsPage: CityPage {
             do {
                 let rows = try await api.comments(item.id)
                 guard !Task.isCancelled else { return }
-                total.text = "\(rows.count) comments"
+                displayedRows = rows
+                renderRows()
                 didChange?()
-                showStatus(nil)
-                list.clear()
-                if rows.isEmpty { list.addArrangedSubview(Theme.empty("Start the conversation", "Share what stood out to you.")) }
-                for row in rows {
-                    let name: UIView
-                    if let author = row.author {
-                        let openProfile: () -> Void = { [weak self] in
-                            guard let self else { return }
-                            self.push(ProfilePage(memberID: author.id, api: self.api))
-                        }
-                        let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
-                                                         memberID: author.id, action: openProfile)
-                        let identity = Theme.stack([avatar, Theme.textAction(author.displayName, action: openProfile)], axis: .horizontal)
-                        identity.alignment = .center
-                        name = identity
-                    } else {
-                        name = Theme.label(row.editorialKey == nil ? "City Resident" : "Sese Editorial", display: true)
-                    }
-                    let own = row.authorId != nil && row.authorId == api.memberID
-                    let button = Theme.button(own ? "Delete" : "Report") { [weak self] in
-                        if own { self?.remove(row.id) } else { self?.report(["comment_id": row.id.uuidString]) }
-                    }
-                    let commentBody = Theme.label(row.body)
-                    commentBody.accessibilityIdentifier = "comment.body"
-                    list.addArrangedSubview(Theme.card([name, commentBody, button]))
-                }
                 pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
@@ -480,6 +546,46 @@ final class CommentsPage: CityPage {
                     list.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.reload() })
                 }
             }
+        }
+    }
+
+    private var displayedRows: [Comment] = []
+
+    private func renderRows() {
+        let rows = displayedRows.filter { $0.authorId.map(api.isBlocked) != true }
+        total.text = "\(rows.count) comments"
+        showStatus(nil)
+        list.clear()
+        if rows.isEmpty { list.addArrangedSubview(Theme.empty("Start the conversation", "Share what stood out to you.")) }
+        for row in rows {
+            let name: UIView
+            if let author = row.author {
+                let openProfile: () -> Void = { [weak self] in
+                    guard let self else { return }
+                    self.push(ProfilePage(memberID: author.id, api: self.api))
+                }
+                let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
+                                                 memberID: author.id, action: openProfile)
+                let identity = Theme.stack([avatar, Theme.textAction(author.displayName, action: openProfile)], axis: .horizontal)
+                identity.alignment = .center
+                name = identity
+            } else {
+                name = Theme.label(row.editorialKey == nil ? "City Resident" : "Sese Editorial", display: true)
+            }
+            let own = row.authorId != nil && row.authorId == api.memberID
+            let button = Theme.button(own ? "Delete" : "Report") { [weak self] in
+                if own { self?.remove(row.id) } else { self?.report(["comment_id": row.id.uuidString]) }
+            }
+            let commentBody = Theme.label(row.body)
+            commentBody.accessibilityIdentifier = "comment.body"
+            let card = Theme.card([name, commentBody, button])
+            if !own, let peer = row.authorId {
+                card.addArrangedSubview(Theme.textAction("Block author") { [weak self] in
+                    guard let self else { return }
+                    self.confirmMemberBlock(peer, api: self.api, comment: row.id)
+                })
+            }
+            list.addArrangedSubview(card)
         }
     }
 

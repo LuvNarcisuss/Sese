@@ -58,7 +58,7 @@ enum MemberAvatar {
     }
 }
 
-final class ProfilePage: CityPage {
+final class ProfilePage: CityPage, SafetyObserving {
     private enum Category: String {
         case shorts = "Shorts"
         case cosplay = "Cosplay"
@@ -101,8 +101,21 @@ final class ProfilePage: CityPage {
 
     required init?(coder: NSCoder) { nil }
 
+    func safetyDidChange() {
+        if api.isBlocked(memberID) { loadTask?.cancel(); closeHiddenContent(); return }
+        items.removeAll { api.isHidden($0) }
+        works.removeAll { api.isHidden($0) }
+        cosplayPosts?.removeAll { api.isHidden($0) }
+        reactedWorks.removeAll { api.isHidden($0) }
+        reactedCosplay.removeAll { api.isHidden($0) }
+        renderCollection()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isBlocked(memberID) else { closeHiddenContent(); return }
         if own, let onSignOut {
             actions.addArrangedSubview(Theme.icon("settings", label: "Settings") { [weak self] in
                 guard let self else { return }
@@ -130,7 +143,10 @@ final class ProfilePage: CityPage {
             NotificationCenter.default.addObserver(self, selector: #selector(walletChanged),
                                                    name: Wallet.didChange, object: wallet)
         }
-        if !own { body.addArrangedSubview(relationshipActions) }
+        if !own {
+            relationshipActions.addArrangedSubview(Theme.button("Block") { [weak self] in self?.confirmBlock() })
+            body.addArrangedSubview(relationshipActions)
+        }
         body.addArrangedSubview(categories)
         body.addArrangedSubview(content)
         renderCategories()
@@ -382,15 +398,7 @@ final class ProfilePage: CityPage {
     }
 
     private func confirmBlock() {
-        menu("Block this member?", choices: [("Block", .destructive, { [weak self] in
-            guard let self else { return }
-            Task {
-                do {
-                    try await self.api.setRelationship("blocks", peer: self.memberID, enabled: true)
-                    self.navigationController?.popToRootViewController(animated: true)
-                } catch { self.alert(error.localizedDescription) }
-            }
-        })])
+        confirmMemberBlock(memberID, api: api)
     }
 }
 
@@ -422,22 +430,26 @@ func profileTabs(_ names: [String], selected: String, compact: Bool = false, cho
 @MainActor
 func addVideoTiles(_ items: [CatalogItem], to stack: UIStackView, accessible: Bool, open: @escaping (CatalogItem) -> Void) {
     let tiles = items.map { item -> UIView in
-        let photo = EditorialImage(item: item)
-        photo.heightAnchor.constraint(equalTo: photo.widthAnchor, multiplier: 0.86).isActive = true
-        let tile = Theme.card([photo, Theme.label(item.title, size: 16, display: true)], spacing: 6)
         let target = UIButton(type: .custom)
         target.accessibilityLabel = item.title
-        target.translatesAutoresizingMaskIntoConstraints = false
         target.addAction(UIAction { _ in open(item) }, for: .touchUpInside)
-        tile.addSubview(target)
-        NSLayoutConstraint.activate([
-            target.leadingAnchor.constraint(equalTo: tile.leadingAnchor), target.trailingAnchor.constraint(equalTo: tile.trailingAnchor),
-            target.topAnchor.constraint(equalTo: tile.topAnchor), target.bottomAnchor.constraint(equalTo: tile.bottomAnchor)
-        ])
-        tile.arrangedSubviews.forEach { $0.isAccessibilityElement = false }
-        return tile
+        return profileVideoTile(cover: EditorialImage(item: item), title: item.title, target: target)
     }
     addProfileTiles(tiles, to: stack, accessible: accessible)
+}
+
+@MainActor
+private func profileVideoTile(cover: UIView, title: String, target: UIButton) -> UIView {
+    cover.heightAnchor.constraint(equalTo: cover.widthAnchor, multiplier: 0.86).isActive = true
+    let tile = Theme.card([cover, Theme.label(title, size: 16, display: true)], spacing: 6)
+    target.translatesAutoresizingMaskIntoConstraints = false
+    tile.addSubview(target)
+    NSLayoutConstraint.activate([
+        target.leadingAnchor.constraint(equalTo: tile.leadingAnchor), target.trailingAnchor.constraint(equalTo: tile.trailingAnchor),
+        target.topAnchor.constraint(equalTo: tile.topAnchor), target.bottomAnchor.constraint(equalTo: tile.bottomAnchor)
+    ])
+    tile.arrangedSubviews.forEach { $0.isAccessibilityElement = false }
+    return tile
 }
 
 @MainActor
@@ -475,7 +487,11 @@ final class SettingsPage: CityPage {
             },
             Theme.button("Blocked members") { [weak self] in
                 guard let self else { return }
-                self.push(BlockedPage(api: self.api))
+                self.push(SafetyHistoryPage(.blocks, api: self.api))
+            },
+            Theme.button("Reported videos") { [weak self] in
+                guard let self else { return }
+                self.push(SafetyHistoryPage(.reports, api: self.api))
             }
         ]))
         body.addArrangedSubview(Theme.card([
@@ -605,44 +621,143 @@ final class EditProfilePage: CityPage {
     }
 }
 
-final class BlockedPage: CityPage {
+private enum SafetyHistoryKind: String {
+    case blocks = "block"
+    case reports = "report"
+
+    var title: String { self == .blocks ? "Blocked members" : "Reported videos" }
+    var action: String { self == .blocks ? "Unblock" : "Withdraw report" }
+}
+
+private final class SafetyHistoryPage: CityPage {
+    private let kind: SafetyHistoryKind
+    private let owner: UUID?
     private var loadTask: Task<Void, Never>?
-    init(api: CommunityAPI) { super.init("Blocked members", api: api) }
+    private var records: [SafetyEntry] = []
+    private var pending: Set<String> = []
+
+    init(_ kind: SafetyHistoryKind, api: CommunityAPI) {
+        self.kind = kind
+        self.owner = api.memberID
+        super.init(kind.title, api: api)
+    }
+
     required init?(coder: NSCoder) { return nil }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         enableRefresh { [weak self] in self?.reload() }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
         reload()
     }
 
     private func reload() {
         loadTask?.cancel()
+        guard let owner, api.memberID == owner else {
+            records.removeAll()
+            body.clear()
+            return
+        }
         loadTask = Task {
             do {
-                let records = try await api.blocks()
+                let entries = try await api.safetyHistory(kind.rawValue, includeCovers: kind == .reports)
                 try Task.checkCancellation()
+                guard api.memberID == owner else { return }
+                records = entries
+                render()
                 showStatus(nil)
-                body.clear()
-                if records.isEmpty { body.addArrangedSubview(Theme.empty("No blocked members", "Members you block will appear here.")) }
-                for (index, record) in records.enumerated() {
-                    body.addArrangedSubview(Theme.card([
-                        Theme.label("Blocked member \(index + 1)", display: true),
-                        Theme.button("Unblock") { [weak self] in self?.unblock(record.targetId) }
-                    ]))
-                }
                 pageRefresh.finish()
             } catch {
-                guard !Task.isCancelled else { return }
-                showStatus("Blocked members could not be loaded.")
-                pageRefresh.finish(error: "Blocked members could not be updated. Pull down to try again.")
+                guard !Task.isCancelled, api.memberID == owner else { return }
+                let message = "Your history could not be loaded. Pull down to try again."
+                showStatus(message)
+                pageRefresh.finish(error: message)
             }
         }
     }
 
-    private func unblock(_ peer: UUID) {
+    private func render() {
+        body.clear()
+        if records.isEmpty {
+            let message = kind == .blocks ? "Members you block will appear here." : "Videos you report will appear here."
+            body.addArrangedSubview(Theme.empty("No " + kind.title.lowercased(), message))
+            return
+        }
+        let cards = records.map { entry -> UIView in
+            let confirm: () -> Void = { [weak self] in self?.confirmUndo(entry) }
+            let row: UIButton
+            if kind == .reports {
+                row = UIButton(type: .custom)
+                row.addAction(UIAction { _ in confirm() }, for: .touchUpInside)
+            } else {
+                row = Theme.button(entry.label, action: confirm)
+                row.configuration?.subtitle = entry.detail
+                row.configuration?.subtitleLineBreakMode = .byWordWrapping
+                row.configuration?.titleAlignment = .leading
+                row.contentHorizontalAlignment = .leading
+            }
+            row.accessibilityLabel = [entry.label, entry.detail].filter { !$0.isEmpty }.joined(separator: ", ")
+            row.accessibilityHint = kind == .blocks ? "Opens unblock options." : "Opens report withdrawal options."
+            row.accessibilityIdentifier = "safety." + kind.rawValue + "." + entry.targetKey
+            row.menu = UIMenu(children: [
+                UIAction(title: kind.action, attributes: .destructive) { _ in confirm() }
+            ])
+            row.isEnabled = !pending.contains(entry.targetKey)
+            if kind == .reports {
+                let cover = EditorialImage(coverURL: entry.coverUrl, videoURL: api.reportedPreviewURL(entry))
+                return profileVideoTile(cover: cover, title: entry.label, target: row)
+            }
+            return row
+        }
+        if kind == .reports {
+            addProfileTiles(cards, to: body, accessible: traitCollection.preferredContentSizeCategory.isAccessibilityCategory)
+        } else {
+            cards.forEach { body.addArrangedSubview($0) }
+        }
+    }
+
+    private func confirmUndo(_ entry: SafetyEntry) {
+        guard let owner, api.memberID == owner, presentedViewController == nil,
+              !pending.contains(entry.targetKey) else { return }
+        let message = kind == .blocks
+            ? "Their eligible content can appear again. Videos you reported stay hidden."
+            : "This video can appear again if it is available and you have not blocked its publisher."
+        let detail = kind == .reports ? entry.label + "\n" + entry.detail : entry.label
+        let dialog = UIAlertController(title: kind.action + "?", message: detail + "\n\n" + message,
+                                       preferredStyle: .alert)
+        dialog.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        dialog.addAction(UIAlertAction(title: kind.action, style: .destructive) { [weak self] _ in self?.undo(entry) })
+        present(dialog, animated: true)
+    }
+
+    private func undo(_ entry: SafetyEntry) {
+        guard let owner, api.memberID == owner, pending.insert(entry.targetKey).inserted else { return }
+        render()
         Task {
-            do { try await api.setRelationship("blocks", peer: peer, enabled: false); reload() }
-            catch { alert(error.localizedDescription) }
+            do {
+                guard api.memberID == owner else { return }
+                switch kind {
+                case .blocks:
+                    guard let peer = UUID(uuidString: entry.targetKey) else { throw CommunityError.unavailable }
+                    try await api.setRelationship("blocks", peer: peer, enabled: false)
+                case .reports:
+                    try await api.withdrawReport(entry)
+                }
+                guard api.memberID == owner else { return }
+                pending.remove(entry.targetKey)
+                loadTask?.cancel()
+                records.removeAll { $0.targetKey == entry.targetKey }
+                render()
+                reload()
+            } catch {
+                guard api.memberID == owner else { return }
+                pending.remove(entry.targetKey)
+                render()
+                alert(error.localizedDescription)
+            }
         }
     }
 }

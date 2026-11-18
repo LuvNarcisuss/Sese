@@ -147,8 +147,12 @@ struct Follow: Decodable {
     let targetId: UUID
 }
 
-struct Block: Decodable {
-    let targetId: UUID
+struct SafetyEntry: Decodable {
+    let targetKey: String
+    let label: String
+    let detail: String
+    let coverUrl: URL?
+    let previewPath: String?
 }
 
 struct Message: Decodable {
@@ -179,11 +183,17 @@ struct InboxItem: Decodable {
 
 @MainActor
 final class CommunityAPI {
-    static let memberBlocked = Notification.Name("SeseMemberBlocked")
+    static let safetyChanged = Notification.Name("SeseSafetyChanged")
+    private(set) var safetyRevision = 0
+    // RLS owns persistent visibility. These session deltas also filter responses started before a write.
+    private var hiddenVideos = Set<String>()
+    private var blockedPeers = Set<UUID>()
+    private var safetyWrites = Set<String>()
     let configuration: BackendConfiguration
     let client: SupabaseClient
     let agreements: AgreementSet?
     private(set) var memberID: UUID?
+    private var useInitialEditorialCounts = true
     private var shortCountCache: [String: ShortCounts] = [:]
     private var acknowledgedShortReactions: [String: [String: Bool]] = [:]
     private static let editorialShortCounts: [String: ShortCounts] = {
@@ -199,13 +209,27 @@ final class CommunityAPI {
         guard configuration.url.scheme == "https", !configuration.publishableKey.isEmpty else {
             throw CommunityError.configuration
         }
-        self.configuration = configuration
         agreements = AgreementSet(configuration: configuration)
+#if DEBUG && targetEnvironment(simulator) && SESE_SAFETY_ACCEPTANCE
+        if let fixture = ModerationAcceptanceFixture.shared {
+            self.configuration = BackendConfiguration(url: fixture.host, publishableKey: "local-acceptance",
+                agreementRevision: configuration.agreementRevision, termsURL: configuration.termsURL, privacyURL: configuration.privacyURL)
+            client = SupabaseClient(supabaseURL: fixture.host, supabaseKey: "local-acceptance")
+            return
+        }
+#endif
+        self.configuration = configuration
         client = SupabaseClient(supabaseURL: configuration.url, supabaseKey: configuration.publishableKey)
     }
 
     func signIn() async throws {
         guard let agreements else { throw CommunityError.agreements }
+#if DEBUG && targetEnvironment(simulator) && SESE_SAFETY_ACCEPTANCE
+        if let fixture = ModerationAcceptanceFixture.shared {
+            memberID = fixture.viewer
+            return
+        }
+#endif
         let credential = try DeviceCredential.loadOrCreate()
         let session: Session
         do {
@@ -224,6 +248,7 @@ final class CommunityAPI {
                                                    body: ["agreement_revision": agreements.revision])
             guard result.code == 0, result.data.isEmpty else { throw CommunityError.invalidResponse }
             if memberID != session.user.id {
+                resetSafety()
                 shortCountCache.removeAll()
                 acknowledgedShortReactions.removeAll()
             }
@@ -257,6 +282,7 @@ final class CommunityAPI {
     func signOut() async throws {
         try await client.auth.signOut(scope: .local)
         memberID = nil
+        resetSafety()
         shortCountCache.removeAll()
         acknowledgedShortReactions.removeAll()
     }
@@ -270,6 +296,7 @@ final class CommunityAPI {
         }
         try await write("rpc/delete_my_account", method: "POST", body: [:])
         memberID = nil
+        resetSafety()
         shortCountCache.removeAll()
         try? await client.auth.signOut(scope: .local)
         DeviceCredential.remove()
@@ -297,9 +324,14 @@ final class CommunityAPI {
         if owner == nil || owner != memberID {
             filters["status"] = "eq.approved"
         }
-        if owner == nil, ids == nil { return try await read("cosplay_posts", query: filters) }
-        filters.removeValue(forKey: "limit")
-        return try await readMedia("cosplay_posts", ids: ids, filters: filters)
+        let posts: [CosplayPost]
+        if owner == nil, ids == nil {
+            posts = try await read("cosplay_posts", query: filters)
+        } else {
+            filters.removeValue(forKey: "limit")
+            posts = try await readMedia("cosplay_posts", ids: ids, filters: filters)
+        }
+        return posts.filter { !isHidden($0) }
     }
 
     func submitCosplay(id: UUID, title: String, caption: String, kind: CosplayMediaKind, bytes: Data) async throws {
@@ -322,7 +354,7 @@ final class CommunityAPI {
     }
 
     func cosplayMediaURL(_ post: CosplayPost) throws -> URL {
-        guard post.status != "removed",
+        guard !isHidden(post), post.status != "removed",
               post.mediaPath == Self.cosplayPath(owner: post.ownerId, id: post.id, kind: post.mediaKind) else {
             throw CommunityError.unavailable
         }
@@ -336,7 +368,7 @@ final class CommunityAPI {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200,
               http.url == url, http.mimeType == post.mediaKind.mimeType,
-              memberID == viewer, (1...Self.maximumCosplayMediaBytes).contains(data.count) else {
+              memberID == viewer, !isHidden(post), (1...Self.maximumCosplayMediaBytes).contains(data.count) else {
             throw CommunityError.unavailable
         }
         return data
@@ -359,7 +391,8 @@ final class CommunityAPI {
     }
 
     func catalog() async throws -> [CatalogItem] {
-        try await read("catalog", query: ["order": "position.asc", "limit": "100"])
+        let items: [CatalogItem] = try await read("catalog", query: ["order": "position.asc", "limit": "100"])
+        return items.filter { !isHidden($0) }
     }
 
     func works(owner: UUID? = nil, ids: Set<UUID>? = nil) async throws -> [MemberWork] {
@@ -370,11 +403,14 @@ final class CommunityAPI {
         } else {
             filters["status"] = "eq.approved"
         }
+        let works: [MemberWork]
         if owner == nil, ids == nil {
             filters["limit"] = "100"
-            return try await read("works", query: filters)
+            works = try await read("works", query: filters)
+        } else {
+            works = try await readMedia("works", ids: ids, filters: filters)
         }
-        return try await readMedia("works", ids: ids, filters: filters)
+        return works.filter { !isHidden($0) }
     }
 
     func submitWork(title: String, caption: String, url: URL) async throws {
@@ -416,12 +452,13 @@ final class CommunityAPI {
     }
 
     func cachedShortCount(_ id: String) -> ShortCounts? {
-        shortCountCache[id] ?? Self.editorialShortCounts[id]
+        shortCountCache[id] ?? (useInitialEditorialCounts ? Self.editorialShortCounts[id] : nil)
     }
 
     func shortCounts(_ ids: [String]) async throws -> [ShortCounts] {
         guard !ids.isEmpty else { return [] }
         guard let account = memberID else { throw CommunityError.unavailable }
+        let revision = safetyRevision
         let rows: [ShortCounts]
         do {
             let initial: [ShortCounts] = try await read("rpc/short_counts", method: "POST", body: ["items": ids])
@@ -444,6 +481,7 @@ final class CommunityAPI {
         }
         try Task.checkCancellation()
         guard memberID == account else { throw CommunityError.unavailable }
+        guard revision == safetyRevision else { throw CancellationError() }
         for row in rows { shortCountCache[row.catalogId] = row }
         return rows
     }
@@ -584,21 +622,140 @@ final class CommunityAPI {
         }
         return links
     }
-    func blocks() async throws -> [Block] { try await read("blocks", query: ["limit": "200"]) }
+    private func resetSafety() {
+        useInitialEditorialCounts = true
+        hiddenVideos.removeAll()
+        blockedPeers.removeAll()
+        safetyRevision += 1
+    }
 
-    func setRelationship(_ table: String, peer: UUID, enabled: Bool) async throws {
-        if enabled {
-            try await write(table, method: "POST", body: ["target_id": peer.uuidString], prefer: "resolution=ignore-duplicates")
-            if table == "blocks" {
-                NotificationCenter.default.post(name: Self.memberBlocked, object: self, userInfo: ["memberID": peer])
+    func isBlocked(_ peer: UUID) -> Bool { blockedPeers.contains(peer) }
+    func isHidden(_ item: CatalogItem) -> Bool {
+        item.publisherId.map(isBlocked) == true || hiddenVideos.contains("catalog:\(item.id)")
+    }
+    func isHidden(_ work: MemberWork) -> Bool {
+        isBlocked(work.ownerId) || hiddenVideos.contains("work:\(work.id.uuidString.lowercased())")
+    }
+    func isHidden(_ post: CosplayPost) -> Bool {
+        isBlocked(post.ownerId) || hiddenVideos.contains("cosplay:\(post.id.uuidString.lowercased())")
+    }
+
+    private func publishSafetyChange() {
+        useInitialEditorialCounts = false
+        safetyRevision += 1
+        shortCountCache.removeAll()
+        NotificationCenter.default.post(name: Self.safetyChanged, object: self)
+    }
+
+    private func safetyWriteKey(_ key: String, account: UUID) throws -> String {
+        let scoped = "\(account.uuidString)/\(key)"
+        guard safetyWrites.insert(scoped).inserted else {
+            throw CommunityError.invalidInput("An update is already in progress.")
+        }
+        return scoped
+    }
+
+    func reportedPreviewURL(_ entry: SafetyEntry) -> URL? {
+        guard let path = entry.previewPath else { return nil }
+        let parts = path.components(separatedBy: "/")
+        guard parts.count == 2, let owner = UUID(uuidString: parts[0]),
+              entry.targetKey.hasPrefix("cosplay:"), let id = UUID(uuidString: String(entry.targetKey.dropFirst("cosplay:".count))),
+              path == Self.cosplayPath(owner: owner, id: id, kind: .video) else { return nil }
+        return try? client.storage.from(Self.cosplayBucket).getPublicURL(path: path)
+    }
+
+    func safetyHistory(_ kind: String, includeCovers: Bool = false) async throws -> [SafetyEntry] {
+        guard let account = memberID, ["report", "block"].contains(kind) else { throw CommunityError.unavailable }
+        var entries: [SafetyEntry] = []
+        while true {
+            try Task.checkCancellation()
+            let page: [SafetyEntry]
+            if includeCovers && kind == "report" {
+                page = try await read("rpc/reported_video_history", method: "POST",
+                                      body: ["page_offset": entries.count], account: account)
+            } else {
+                page = try await read("rpc/safety_history", method: "POST",
+                                      body: ["entry_kind": kind, "page_offset": entries.count], account: account)
             }
-        } else {
-            try await write(table, method: "DELETE", query: ["target_id": "eq.\(peer.uuidString)"])
+            guard account == memberID else { throw CommunityError.unavailable }
+            entries += page
+            if page.count < 100 { return entries }
         }
     }
 
-    func report(_ target: [String: String], reason: String) async throws {
-        try await write("reports", method: "POST", body: target.merging(["reason": reason]) { _, new in new })
+    func reconcileSafety() async {
+        guard let account = memberID else { return }
+        let revision = safetyRevision
+        do {
+            async let reports = self.safetyHistory("report")
+            async let blocks = self.safetyHistory("block")
+            let (reportRows, blockRows) = try await (reports, blocks)
+            guard account == memberID, revision == safetyRevision else { return }
+            let videos = Set(reportRows.map(\.targetKey))
+            let peers = Set(blockRows.compactMap { UUID(uuidString: $0.targetKey) })
+            guard videos != hiddenVideos || peers != blockedPeers else { return }
+            hiddenVideos = videos
+            blockedPeers = peers
+            publishSafetyChange()
+        } catch {
+            // A failed reconciliation must never make previously hidden content visible.
+        }
+    }
+
+    func blockMember(_ peer: UUID, comment: UUID? = nil) async throws {
+        guard let account = memberID, peer != account else { throw CommunityError.unavailable }
+        let key = try safetyWriteKey("block:\(peer)", account: account)
+        defer { safetyWrites.remove(key) }
+        let body: [String: Any] = ["peer": peer.uuidString, "comment": comment.map { $0.uuidString as Any } ?? NSNull()]
+        try await write("rpc/block_member", method: "POST", body: body, account: account)
+        guard account == memberID else { throw CommunityError.unavailable }
+        blockedPeers.insert(peer)
+        publishSafetyChange()
+    }
+
+    func setRelationship(_ table: String, peer: UUID, enabled: Bool) async throws {
+        guard let account = memberID else { throw CommunityError.unavailable }
+        if table == "blocks" {
+            if enabled { try await blockMember(peer); return }
+            let key = try safetyWriteKey("block:\(peer)", account: account)
+            defer { safetyWrites.remove(key) }
+            try await write(table, method: "DELETE", query: ["target_id": "eq.\(peer.uuidString)"], account: account)
+            guard account == memberID else { throw CommunityError.unavailable }
+            blockedPeers.remove(peer)
+            publishSafetyChange()
+        } else if enabled {
+            try await write(table, method: "POST", body: ["target_id": peer.uuidString], prefer: "resolution=ignore-duplicates", account: account)
+        } else {
+            try await write(table, method: "DELETE", query: ["target_id": "eq.\(peer.uuidString)"], account: account)
+        }
+    }
+
+    func report(_ target: [String: String], reason: String, video: Bool = true) async throws {
+        guard let account = memberID else { throw CommunityError.unavailable }
+        if video, let (field, rawID) = target.first, target.count == 1,
+           let kind = ["work_id": "work", "catalog_id": "catalog", "cosplay_post_id": "cosplay"][field] {
+            let id = kind == "catalog" ? rawID : rawID.lowercased()
+            let targetKey = "\(kind):\(id)"
+            let key = try safetyWriteKey(targetKey, account: account)
+            defer { safetyWrites.remove(key) }
+            try await write("rpc/submit_video_report", method: "POST",
+                            body: ["target_kind": kind, "item_key": id, "report_reason": reason], account: account)
+            guard account == memberID else { throw CommunityError.unavailable }
+            hiddenVideos.insert(targetKey)
+            publishSafetyChange()
+        } else {
+            try await write("reports", method: "POST", body: target.merging(["reason": reason]) { _, new in new }, account: account)
+        }
+    }
+
+    func withdrawReport(_ entry: SafetyEntry) async throws {
+        guard let account = memberID else { throw CommunityError.unavailable }
+        let key = try safetyWriteKey(entry.targetKey, account: account)
+        defer { safetyWrites.remove(key) }
+        try await write("rpc/withdraw_video_report", method: "POST", body: ["entry_key": entry.targetKey], account: account)
+        guard account == memberID else { throw CommunityError.unavailable }
+        hiddenVideos.remove(entry.targetKey)
+        publishSafetyChange()
     }
 
     func chatFriends() async throws -> [ChatFriend] {
@@ -717,27 +874,34 @@ final class CommunityAPI {
     }
 
     private func read<T: Decodable>(_ path: String, method: String = "GET", query: [String: String] = [:],
-                                    body: [String: Any]? = nil) async throws -> T {
-        let data = try await request(path, method: method, query: query, body: body, prefer: nil)
+                                    body: [String: Any]? = nil, account: UUID? = nil) async throws -> T {
+        let data = try await request(path, method: method, query: query, body: body, prefer: nil, account: account)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(T.self, from: data)
     }
 
     private func write(_ path: String, method: String, query: [String: String] = [:],
-                       body: [String: Any]? = nil, prefer: String? = nil) async throws {
-        _ = try await request(path, method: method, query: query, body: body, prefer: prefer)
+                       body: [String: Any]? = nil, prefer: String? = nil, account: UUID? = nil) async throws {
+        _ = try await request(path, method: method, query: query, body: body, prefer: prefer, account: account)
     }
 
     private func request(_ path: String, method: String, query: [String: String], body: [String: Any]?,
-                         prefer: String?) async throws -> Data {
-        let (data, _) = try await response(path, method: method, query: query, body: body, prefer: prefer)
+                         prefer: String?, account: UUID? = nil) async throws -> Data {
+        let (data, _) = try await response(path, method: method, query: query, body: body, prefer: prefer, account: account)
         return data
     }
 
     private func response(_ path: String, method: String, query: [String: String], body: [String: Any]?,
-                          prefer: String?) async throws -> (Data, HTTPURLResponse) {
+                          prefer: String?, account: UUID? = nil) async throws -> (Data, HTTPURLResponse) {
+#if DEBUG && targetEnvironment(simulator) && SESE_SAFETY_ACCEPTANCE
+        if let fixture = ModerationAcceptanceFixture.shared {
+            guard memberID == fixture.viewer, account == nil || account == fixture.viewer else { throw CommunityError.unavailable }
+            return try fixture.respond(path, method: method, query: query, body: body)
+        }
+#endif
         let session = try await client.auth.session
+        if let account, account != memberID || account != session.user.id { throw CommunityError.unavailable }
         let endpoint = configuration.url.appendingPathComponent("rest/v1/\(path)")
         guard var parts = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { throw CommunityError.configuration }
         if !query.isEmpty { parts.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } }

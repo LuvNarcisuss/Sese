@@ -1,7 +1,7 @@
 import UIKit
 import PhotosUI
 
-final class InboxPage: CityPage {
+final class InboxPage: CityPage, SafetyObserving {
     private let list = Theme.stack()
     private let searchField = Theme.field("Search chats")
     private var rows: [InboxItem] = []
@@ -15,8 +15,16 @@ final class InboxPage: CityPage {
     init(api: CommunityAPI) { super.init("Chats", api: api) }
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        rows.removeAll { api.isBlocked($0.peerId) }
+        friends.removeAll { api.isBlocked($0.id) }
+        render()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         actions.addArrangedSubview(Theme.icon("search", label: "Search chats") { [weak self] in
             guard let self else { return }
             self.searchField.isHidden.toggle()
@@ -199,7 +207,7 @@ final class InboxPage: CityPage {
     }
 }
 
-final class MembersPage: CityPage {
+final class MembersPage: CityPage, SafetyObserving {
     private var loadTask: Task<Void, Never>?
     private let list = Theme.stack()
     private let searchField = Theme.field("Find a resident")
@@ -211,8 +219,15 @@ final class MembersPage: CityPage {
     init(api: CommunityAPI) { super.init("Members", api: api) }
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        people.removeAll { api.isBlocked($0.id) }
+        render()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         actions.addArrangedSubview(Theme.icon("filter", label: "Filter members") { [weak self] in
             let scopes = ["Everyone", "Following", "Followers", "Friends"]
             self?.menu("Members", choices: scopes.map { scope in
@@ -282,7 +297,7 @@ final class MembersPage: CityPage {
     }
 }
 
-final class ThreadPage: CityPage, PHPickerViewControllerDelegate {
+final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegate {
     private let peerID: UUID
     private let list = Theme.stack()
     private let input = Theme.field("Message")
@@ -308,8 +323,20 @@ final class ThreadPage: CityPage, PHPickerViewControllerDelegate {
 
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        guard api.isBlocked(peerID) else { return }
+        liveTask?.cancel()
+        loadTask?.cancel()
+        maySend = false
+        newest.removeAll()
+        older.removeAll()
+        closeHiddenContent()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isBlocked(peerID) else { closeHiddenContent(); return }
         actions.addArrangedSubview(Theme.icon("profile", label: "View profile") { [weak self] in
             guard let self else { return }
             self.push(ProfilePage(memberID: self.peerID, api: self.api))
@@ -426,6 +453,7 @@ final class ThreadPage: CityPage, PHPickerViewControllerDelegate {
             defer { loadingEarlier = false }
             do {
                 let messages = try await api.thread(peerID, before: timestamp)
+                guard !api.isBlocked(peerID) else { return }
                 hasEarlier = messages.count == 50
                 let known = Set(older.map(\.id))
                 older.append(contentsOf: messages.filter { !known.contains($0.id) })

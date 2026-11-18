@@ -35,6 +35,9 @@ final class EntryPage: UIViewController {
             stack.addArrangedSubview(makeConsentRow())
             let button = Theme.button("One-tap sign in", accent: true) { [weak self] in self?.beginSignIn() }
             button.accessibilityIdentifier = "entry.oneTapSignIn"
+#if DEBUG && targetEnvironment(simulator) && SESE_SAFETY_ACCEPTANCE
+            if ModerationAcceptanceFixture.shared != nil { button.accessibilityIdentifier = "entry.moderationAcceptance" }
+#endif
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 50).isActive = true
             stack.addArrangedSubview(button)
             signInButton = button

@@ -1,5 +1,6 @@
 import UIKit
 import CoreText
+import AVFoundation
 import SafariServices
 
 @MainActor
@@ -289,20 +290,35 @@ enum Artwork {
 }
 
 final class EditorialImage: UIImageView {
-    init(item: CatalogItem) {
+    private var loadTask: Task<Void, Never>?
+
+    convenience init(item: CatalogItem) {
+        self.init(coverURL: item.imageUrl)
+    }
+
+    init(coverURL: URL?, videoURL: URL? = nil) {
         super.init(image: nil)
         contentMode = .scaleAspectFill
         clipsToBounds = true
         backgroundColor = Theme.panel
         layer.cornerRadius = 14
-        Task { [weak self] in
-            if let image = await Artwork.image(at: item.imageUrl) {
-                self?.image = image
-            } else {
-                self?.image = await Artwork.image("background")
+        loadTask = Task { [weak self] in
+            var cover = await Artwork.image(at: coverURL)
+            if cover == nil, let videoURL, !Task.isCancelled {
+                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: videoURL))
+                generator.appliesPreferredTrackTransform = true
+                generator.maximumSize = CGSize(width: 480, height: 480)
+                if let frame = try? await generator.image(at: .zero) {
+                    cover = UIImage(cgImage: frame.image)
+                }
             }
+            if cover == nil { cover = await Artwork.image("background") }
+            guard !Task.isCancelled else { return }
+            self?.image = cover
         }
     }
+
+    deinit { loadTask?.cancel() }
 
     required init?(coder: NSCoder) { return nil }
 }
@@ -475,15 +491,15 @@ class CityPage: UIViewController {
         present(menu, animated: true)
     }
 
-    func report(_ target: [String: String]) {
+    func report(_ target: [String: String], video: Bool = true) {
         let reasons = ["Harassment", "Spam", "Inappropriate content", "Other"]
         menu("Report", choices: reasons.map { reason in
             (reason, .default, { [weak self] in
                 guard let self else { return }
                 Task {
                     do {
-                        try await self.api.report(target, reason: reason)
-                        self.alert("Your report was submitted.")
+                        try await self.api.report(target, reason: reason, video: video)
+                        UIAccessibility.post(notification: .announcement, argument: "Report submitted.")
                     } catch { self.alert(error.localizedDescription) }
                 }
             })

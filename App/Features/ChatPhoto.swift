@@ -55,7 +55,7 @@ enum ChatPhoto {
     }
 }
 
-final class ChatPhotoPage: CityPage {
+final class ChatPhotoPage: CityPage, SafetyObserving {
     private let message: Message
     private var loadTask: Task<Void, Never>?
 
@@ -66,8 +66,16 @@ final class ChatPhotoPage: CityPage {
 
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        if api.isBlocked(message.senderId) || api.isBlocked(message.recipientId) {
+            loadTask?.cancel()
+            closeHiddenContent()
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         enableRefresh { [weak self] in self?.loadPhoto() }
     }
 

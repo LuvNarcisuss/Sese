@@ -5,6 +5,80 @@ import XCTest
 final class PullRefreshAcceptanceTests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testShortsRefreshOrderAndContinuousPaging() {
+        let app = signedInApp()
+        let title = app.staticTexts["shorts.title"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 20))
+        let first = title.label
+        app.buttons["Search shorts"].tap()
+        let results = app.scrollViews["shorts.search.results"]
+        XCTAssertTrue(results.buttons[first].waitForExistence(timeout: 10))
+        let filters = Set(["All", "Clips", "Cosplay", "Saved"])
+        let available = Set(results.buttons.allElementsBoundByIndex.map(\.label)).subtracting(filters)
+        XCTAssertGreaterThan(available.count, 1)
+        app.buttons["Cancel"].tap()
+
+        var seen: Set<String> = [first]
+        for _ in 1..<available.count {
+            refresh(app, on: app, name: "Shorts rotation")
+            XCTAssertTrue(seen.insert(title.label).inserted)
+        }
+        XCTAssertEqual(seen, available)
+        let last = title.label
+        refresh(app, on: app, name: "Shorts next round")
+        XCTAssertNotEqual(title.label, last)
+
+        let start = title.label
+        var lap: Set<String> = [start]
+        for step in 1...(available.count * 2) {
+            let previous = title.label
+            app.swipeUp()
+            let advanced = NSPredicate(format: "exists == true AND label != %@", previous)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: advanced, object: title)],
+                                          timeout: 10), .completed)
+            if step.isMultiple(of: available.count) {
+                XCTAssertEqual(title.label, start)
+                XCTAssertEqual(lap, available)
+                lap = [start]
+            } else {
+                XCTAssertTrue(lap.insert(title.label).inserted)
+            }
+        }
+        app.swipeUp()
+        let later = title.label
+        XCTAssertNotEqual(later, start)
+        refresh(app, on: app, name: "Shorts pull from a later clip")
+        XCTAssertNotEqual(title.label, later)
+    }
+
+    func testSingleFilteredShortKeepsPlayingOnRefresh() throws {
+        let app = signedInApp()
+        app.buttons["Search shorts"].tap()
+        let results = app.scrollViews["shorts.search.results"]
+        results.buttons["Clips"].tap()
+        let filters = Set(["All", "Clips", "Cosplay", "Saved"])
+        let clips = Set(results.buttons.allElementsBoundByIndex.map(\.label)).subtracting(filters)
+        try XCTSkipUnless(clips.count == 1, "This case needs exactly one visible film clip.")
+        let onlyClip = try XCTUnwrap(clips.first)
+        app.buttons["Cancel"].tap()
+        app.buttons["Filter shorts"].tap()
+        app.sheets.buttons["Film Clip"].tap()
+        let title = app.staticTexts["shorts.title"].firstMatch
+        XCTAssertEqual(title.label, onlyClip)
+        refresh(app, on: app, name: "Single filtered short")
+        XCTAssertEqual(title.label, onlyClip)
+        app.swipeUp()
+        XCTAssertEqual(title.label, onlyClip)
+        let before = videoRegion(app)
+        XCTAssertNotNil(before)
+        let advances = NSPredicate { _, _ in
+            guard let frame = self.videoRegion(app) else { return false }
+            return frame != before
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: advances, object: nil)],
+                                      timeout: 15), .completed)
+    }
+
     func testShortsCreatorSearchAndCommentsRefresh() {
         let app = signedInApp()
         refresh(app, on: app, name: "Shorts")
@@ -159,7 +233,11 @@ final class PullRefreshAcceptanceTests: XCTestCase {
         print("Refresh area \(name): \(area.frame), app: \(app.frame)")
         let start = area.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: surface === app ? 0.25 : startY))
         let finish = area.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: surface === app ? 0.65 : endY))
-        start.press(forDuration: 0.15, thenDragTo: finish)
+        if surface === app {
+            start.press(forDuration: 0.15, thenDragTo: finish, withVelocity: .slow, thenHoldForDuration: 0)
+        } else {
+            start.press(forDuration: 0.15, thenDragTo: finish)
+        }
         let updated = NSPredicate(format: "exists == true AND value BEGINSWITH %@ AND value != %@", "success:", previous)
         let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: updated, object: status)], timeout: 30)
         let capture = XCTAttachment(screenshot: app.screenshot())

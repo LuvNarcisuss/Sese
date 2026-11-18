@@ -10,7 +10,7 @@ All five root data screens now support manual refresh. Scrollable content/detail
 
 | Route | Reloaded data |
 | --- | --- |
-| Shorts | Catalog, viewer reactions, and authoritative engagement counts; pull down on the first filtered clip. Later clips retain backward paging. Unchanged current video content keeps its player. |
+| Shorts | Pull down to reload the catalog, reactions and counts and start a new order within the active filter. Prefer unseen clips until the round is exhausted. Swiping up from the last clip starts the next lap. A quick downward flick on later clips goes back. A sole eligible clip keeps playing. |
 | Shorts search | The same data, retaining search text and scope. |
 | Creator | Current catalog works and their aggregate engagement counts. |
 | Comments | Stored comment rows and the matching count, retaining the draft. The half-height sheet remains in use. A downward drag refreshes its contents instead of dismissing the sheet; Done closes it. The underlying feed ignores pull gestures while a modal is presented. |
@@ -59,3 +59,7 @@ The Shorts case in that run exposed the discussion sheet dismissal conflict and 
 The final focused rerun in `/private/tmp/SeseRefreshFinalShorts.xcresult` passed with zero failures (95.120 seconds). It repeated all eight Shorts-related pulls on the latest build, verified that search feedback does not overlap the filter row, retained the search query, repeated the discussion playback/count checks, and returned to the Shorts feed. The exported final search screenshot was visually inspected and confirms the separate feedback row.
 
 Across the three passing ordinary-page cases and the final focused Shorts case, all four acceptance cases have passed, covering 32 route/state refresh checks. This is evidence from the relevant runs, not a claim that the earlier mixed-result bundle was entirely successful. The latest `build-for-testing` succeeded, and `git diff --check` reported no whitespace errors. The final build remains installed on the named acceptance simulator.
+
+## Shorts rotation and continuous paging
+
+On November 18, 2026, three serial UI tests passed on Sese UI Acceptance (iPhone 17 Pro, iOS 26.0.1) with the online catalog. With four eligible Shorts, consecutive pulls showed all four before a repeat. The next pull changed the visible clip. Eight upward swipes completed two full laps, and a pull from a later clip selected a different video. With one eligible film clip, a pull and an upward swipe kept the same clip playing. The existing creator, comments, playback, search and community-video refresh test also passed. Result bundle: `/private/tmp/sese-shorts-loop.ejVUhe/Final.xcresult`.

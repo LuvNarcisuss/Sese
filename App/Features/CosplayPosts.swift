@@ -302,7 +302,7 @@ private final class CosplayPhotoThumbnail: UIButton {
     deinit { loadTask?.cancel() }
 }
 
-final class CosplayPostPage: CityPage {
+final class CosplayPostPage: CityPage, SafetyObserving {
     private var post: CosplayPost
     private var refreshTask: Task<Void, Never>?
     private let media = Theme.stack()
@@ -319,8 +319,16 @@ final class CosplayPostPage: CityPage {
 
     deinit { if let temporaryVideo { try? FileManager.default.removeItem(at: temporaryVideo) } }
 
+    func safetyDidChange() {
+        refreshTask?.cancel()
+        if api.isHidden(post) { closeHiddenContent(); return }
+        reloadPost()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isHidden(post) else { closeHiddenContent(); return }
         enableRefresh { [weak self] in self?.reloadPost() }
         renderPost()
     }
@@ -350,8 +358,13 @@ final class CosplayPostPage: CityPage {
             actions.addArrangedSubview(Theme.moreIcon(label: "Post options") { [weak self] in
                 guard let self else { return }
                 let id = self.post.id.uuidString
+                let isVideo = self.post.mediaKind == .video
                 self.menu("Post options", choices: [
-                    ("Report post", .destructive, { [weak self] in self?.report(["cosplay_post_id": id]) })
+                    ("Report post", .destructive, { [weak self] in self?.report(["cosplay_post_id": id], video: isVideo) }),
+                    ("Block author", .destructive, { [weak self] in
+                        guard let self else { return }
+                        self.confirmMemberBlock(self.post.ownerId, api: self.api)
+                    })
                 ])
             })
         }
@@ -381,7 +394,7 @@ final class CosplayPostPage: CityPage {
             do {
                 let rows = try await api.cosplayPosts(owner: post.ownerId, ids: [post.id])
                 try Task.checkCancellation()
-                guard let updated = rows.first else { throw CommunityError.unavailable }
+                guard let updated = rows.first else { closeHiddenContent(); return }
                 post = updated
                 renderPost()
                 if post.mediaKind == .photo && post.status != "removed" {
@@ -405,6 +418,7 @@ final class CosplayPostPage: CityPage {
     }
 
     private func loadMedia(completion: ((String?) -> Void)? = nil) {
+        guard !api.isHidden(post) else { return }
         guard !loading else {
             completion?("Wait for the media to load, then pull down again.")
             return
@@ -415,10 +429,12 @@ final class CosplayPostPage: CityPage {
             defer { loading = false }
             do {
                 let data = try await api.cosplayMedia(post)
+                guard !api.isHidden(post) else { return }
                 if post.mediaKind == .photo {
                     guard let image = await Task.detached(operation: { ChatPhoto.decode(data) }).value else {
                         throw CommunityError.unavailable
                     }
+                    guard !api.isHidden(post) else { return }
                     let picture = UIImageView(image: UIImage(cgImage: image))
                     picture.contentMode = .scaleAspectFit
                     picture.heightAnchor.constraint(equalToConstant: 330).isActive = true

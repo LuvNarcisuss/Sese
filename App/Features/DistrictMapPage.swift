@@ -90,7 +90,7 @@ private final class DistrictMapView: UIView {
     }
 }
 
-final class DistrictMapPage: CityPage {
+final class DistrictMapPage: CityPage, SafetyObserving {
     private let wallet: Wallet
     private let memberID: UUID
     private let summary = Theme.label("", size: 16, color: Theme.secondary)
@@ -113,8 +113,14 @@ final class DistrictMapPage: CityPage {
 
     required init?(coder: NSCoder) { nil }
 
+    func safetyDidChange() {
+        districtGuides.removeAll { api.isHidden($0) }
+        reloadGuides()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         let walletButton = Theme.icon("wallet", label: "Wallet") { [weak self] in self?.showWallet() }
         actions.addArrangedSubview(walletButton)
         body.addArrangedSubview(summary)

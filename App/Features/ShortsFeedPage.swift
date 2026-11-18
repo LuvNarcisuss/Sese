@@ -33,7 +33,7 @@ private extension CatalogItem {
     }
 }
 
-private final class EditorialShortsProfile: CityPage {
+private final class EditorialShortsProfile: CityPage, SafetyObserving {
     private let item: CatalogItem
     private var videos: [CatalogItem]
     private let openShort: (CatalogItem) -> Void
@@ -54,8 +54,17 @@ private final class EditorialShortsProfile: CityPage {
 
     required init?(coder: NSCoder) { nil }
 
+    func safetyDidChange() {
+        videos.removeAll { api.isHidden($0) }
+        cosplay.removeAll { api.isHidden($0) }
+        showMetrics(videos.compactMap { api.cachedShortCount($0.id) })
+        renderWorks()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         let name = Theme.label(item.creatorName, size: 26, display: true)
         let bio = Theme.label("An editorial collection of credited films and costume work.", color: Theme.secondary)
         let identity = Theme.stack([MemberAvatar.view(item.creatorPortrait, size: 70), Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
@@ -263,6 +272,7 @@ private final class ShortsClipPage: UIViewController {
         let title = Theme.label(item.title, size: 22, display: true)
         title.numberOfLines = 2
         title.accessibilityTraits.insert(.header)
+        title.accessibilityIdentifier = "shorts.title"
         let caption = Theme.label(item.description, size: 14, color: Theme.paper)
         caption.numberOfLines = 2
         let baseline = Theme.label("", size: 12, color: Theme.paper)
@@ -342,9 +352,11 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     private let state = Theme.stack()
     private let pageRefresh = PageRefresh()
     private var pullTask: Task<Void, Never>?
+    private var pendingPullShuffle: Bool?
     private lazy var pullGesture = UIPanGestureRecognizer(target: self, action: #selector(pulledToRefresh(_:)))
     private var catalog: [HostedShort] = []
     private var items: [HostedShort] = []
+    private var seenClipIDs: Set<String> = []
     private var reactions: [String: Set<String>] = [:]
     private var pending: [String: Set<String>] = [:]
     private var catalogTask: Task<Void, Never>?
@@ -425,6 +437,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         pullGesture.delegate = self
         pullGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(pullGesture)
+        pager.view.subviews.compactMap { $0 as? UIScrollView }.first?
+            .panGestureRecognizer.require(toFail: pullGesture)
         let refreshFeedback = pageRefresh.feedback
         refreshFeedback.textAlignment = .center
         refreshFeedback.backgroundColor = Theme.ink.withAlphaComponent(0.75)
@@ -446,20 +460,30 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(memberBlocked(_:)),
-                                               name: CommunityAPI.memberBlocked, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(safetyChanged(_:)),
+                                               name: CommunityAPI.safetyChanged, object: nil)
         loadCatalog()
     }
 
-    @objc private func memberBlocked(_ notification: Notification) {
-        guard (notification.object as? CommunityAPI) === api,
-              let id = notification.userInfo?["memberID"] as? UUID,
-              catalog.contains(where: { $0.item.publisherId == id }) else { return }
+    @objc private func safetyChanged(_ notification: Notification) {
+        guard (notification.object as? CommunityAPI) === api else { return }
+        catalogTask?.cancel()
         visibleCatalogTask?.cancel()
-        catalog.removeAll { $0.item.publisherId == id }
-        applyFilters()
+        pullTask?.cancel()
+        pendingPullShuffle = nil
+        pageRefresh.cancel()
+        let previousCount = catalog.count
+        let currentIndex = items.firstIndex { $0.item.id == current?.item.id } ?? 0
+        let successor = items.dropFirst(currentIndex).first { !api.isHidden($0.item) }
+        catalog.removeAll { api.isHidden($0.item) }
+        if previousCount != catalog.count {
+            applyFilters(preferredID: successor?.item.id)
+            renderSearchResults()
+        }
+        // Blocking a commenter changes counts even for clips published by someone else.
+        renderReactions()
         refreshCounts()
-        renderSearchResults()
+        if loaded { refreshVisibleCatalog() } else { loadCatalog() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -481,6 +505,7 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         super.viewWillDisappear(animated)
         visible = false
         pullTask?.cancel()
+        pendingPullShuffle = nil
         pageRefresh.cancel()
         updateTabBarAppearance(fullBleed: false)
         playbackVisibilityChanged()
@@ -489,14 +514,11 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === pullGesture else { return true }
         let velocity = pullGesture.velocity(in: view)
-        return presentedViewController == nil && !searching && !paging && !overlayOpen && !pageRefresh.isRefreshing &&
-            (current == nil || current?.item.id == items.first?.item.id) &&
-            velocity.y > abs(velocity.x) && pullGesture.location(in: view).y > view.safeAreaInsets.top + 60
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        gestureRecognizer === pullGesture || otherGestureRecognizer === pullGesture
+        let startY = pullGesture.location(in: view).y
+        guard presentedViewController == nil, !searching, !paging, !overlayOpen, !pageRefresh.isRefreshing,
+              velocity.y > abs(velocity.x), startY > view.safeAreaInsets.top + 60 else { return false }
+        // A deliberate pull refreshes any page. A quick downward flick can still go back.
+        return current?.item.id == items.first?.item.id || velocity.y < 1_200
     }
 
     @objc private func pulledToRefresh(_ gesture: UIPanGestureRecognizer) {
@@ -522,6 +544,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         reactionsTask?.cancel()
         countsTask?.cancel()
         pullTask?.cancel()
+        pendingPullShuffle = nil
+        let reorderFeed = !searching
         pullTask = Task { [weak self, api] in
             guard let self else { return }
             do {
@@ -531,21 +555,13 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                 let updated = rows.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
                 _ = try await api.shortCounts(updated.map { $0.item.id })
                 try Task.checkCancellation()
-                let previous = current?.item
-                let oldIDs = catalog.map { $0.item.id }
+                guard pageRefresh.isRefreshing else { return }
                 catalog = updated
                 loaded = true
                 reactions = Dictionary(grouping: values, by: \.catalogId).mapValues { Set($0.map(\.kind)) }
                 reactionsReady = true
-                if previous == nil || oldIDs != updated.map({ $0.item.id }) ||
-                    previous != updated.first(where: { $0.item.id == previous?.id })?.item {
-                    applyFilters()
-                } else {
-                    items = catalog.filter { kind == nil || kind == $0.item.kind }
-                }
-                renderReactions()
-                renderSearchResults()
-                pageRefresh.finish()
+                pendingPullShuffle = reorderFeed
+                finishPullWhenSettled()
             } catch {
                 guard !Task.isCancelled else { return }
                 pageRefresh.finish(error: "Shorts could not be updated. Pull down to try again.")
@@ -553,11 +569,21 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         }
     }
 
+    private func finishPullWhenSettled() {
+        guard !paging, let shuffle = pendingPullShuffle else { return }
+        pendingPullShuffle = nil
+        guard pageRefresh.isRefreshing else { return }
+        applyFilters(shuffle: shuffle)
+        renderReactions()
+        renderSearchResults()
+        pageRefresh.finish()
+    }
+
     @objc private func willResignActive() { current?.playback.setActive(false) }
 
     @objc private func playbackVisibilityChanged() {
         guard let current else { return }
-        current.playback.setActive(visible && !pager.view.isHidden && !paging && !overlayOpen && !searching &&
+        current.playback.setActive(!api.isHidden(current.item) && visible && !pager.view.isHidden && !paging && !overlayOpen && !searching &&
                                    UIApplication.shared.applicationState == .active)
     }
 
@@ -606,15 +632,35 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         if retry { state.addArrangedSubview(Theme.button("Retry") { [weak self] in self?.loadCatalog() }) }
     }
 
-    private func applyFilters(preferredID: String? = nil) {
+    private func applyFilters(preferredID: String? = nil, shuffle: Bool = false) {
         guard loaded else { return }
-        let previous = preferredID ?? current?.item.id
-        current?.playback.releasePlayback()
-        items = catalog.filter { kind == nil || kind == $0.item.kind }
-        guard let short = items.first(where: { $0.item.id == previous }) ?? items.first else {
+        let previous = current?.item
+        let previousOrder = items.map { $0.item.id }
+        let eligible = catalog.filter { !api.isHidden($0.item) && (kind == nil || kind == $0.item.kind) }
+        seenClipIDs.formIntersection(catalog.map { $0.item.id })
+        if shuffle {
+            if eligible.allSatisfy({ seenClipIDs.contains($0.item.id) }) {
+                seenClipIDs.subtract(eligible.map { $0.item.id })
+                if let previous { seenClipIDs.insert(previous.id) }
+            }
+            let shuffled = eligible.shuffled()
+            items = shuffled.filter { !seenClipIDs.contains($0.item.id) } +
+                shuffled.filter { seenClipIDs.contains($0.item.id) }
+        } else {
+            // Keep the playback order across background reloads and append newly eligible clips.
+            var fresh = Dictionary(uniqueKeysWithValues: eligible.map { ($0.item.id, $0) })
+            items = previousOrder.compactMap { fresh.removeValue(forKey: $0) } +
+                eligible.filter { fresh[$0.item.id] != nil }
+        }
+        let selectedID = shuffle ? items.first?.item.id : (preferredID ?? previous?.id)
+        guard let short = items.first(where: { $0.item.id == selectedID }) ?? items.first else {
+            current?.playback.releasePlayback()
             showState(catalog.isEmpty ? "No shorts are available yet." : "No shorts match your search or filter.")
             return
         }
+        seenClipIDs.insert(short.item.id)
+        if !pager.view.isHidden, short.item == previous, previousOrder == items.map({ $0.item.id }) { return }
+        current?.playback.releasePlayback()
         state.isHidden = true
         pager.view.isHidden = false
         pager.setViewControllers([makePage(short)], direction: .forward, animated: false)
@@ -646,9 +692,11 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     private func adjacent(_ page: UIViewController, offset: Int) -> UIViewController? {
         guard let page = page as? ShortsClipPage,
-              let index = items.firstIndex(where: { $0.item.id == page.item.id }),
-              items.indices.contains(index + offset) else { return nil }
-        return makePage(items[index + offset])
+              items.count > 1,
+              let index = items.firstIndex(where: { $0.item.id == page.item.id }) else { return nil }
+        let next = (index + offset) % items.count
+        guard next >= 0 else { return nil }
+        return makePage(items[next])
     }
 
     func pageViewController(_ pageViewController: UIPageViewController,
@@ -673,6 +721,11 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         if completed, let previous = previousViewControllers.first as? ShortsClipPage {
             previous.playback.releasePlayback()
         }
+        if let current {
+            if api.isHidden(current.item) { applyFilters() }
+            else if completed { seenClipIDs.insert(current.item.id) }
+        }
+        finishPullWhenSettled()
         renderReactions()
         playbackVisibilityChanged()
     }
@@ -859,8 +912,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     private func refreshCounts() {
         let ids = catalog.map { $0.item.id }
-        guard !ids.isEmpty else { return }
         countsTask?.cancel()
+        guard !ids.isEmpty else { return }
         countsTask = Task { [weak self, api] in
             guard (try? await api.shortCounts(ids)) != nil, let self, !Task.isCancelled else { return }
             self.renderReactions()
@@ -870,14 +923,12 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     private func refreshVisibleCatalog() {
         visibleCatalogTask?.cancel()
         visibleCatalogTask = Task { [weak self, api] in
-            guard let self, let rows = try? await api.catalog(), !Task.isCancelled, self.visible else { return }
+            guard let self, let rows = try? await api.catalog(), !Task.isCancelled else { return }
             let updated = rows.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
             let oldIDs = self.catalog.map { $0.item.id }
             self.catalog = updated
-            if oldIDs != updated.map({ $0.item.id }) {
-                self.applyFilters()
-                self.refreshCounts()
-            }
+            self.applyFilters()
+            if oldIDs != updated.map({ $0.item.id }) { self.refreshCounts() }
             self.renderSearchResults()
         }
     }
@@ -908,6 +959,12 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         menu.addAction(UIAlertAction(title: "Report video", style: .destructive) { [weak self] _ in
             self?.report(item)
         })
+        if let publisher = item.publisherId, publisher != api.memberID {
+            menu.addAction(UIAlertAction(title: "Block author", style: .destructive) { [weak self] _ in
+                guard let self else { return }
+                self.confirmMemberBlock(publisher, api: self.api)
+            })
+        }
         menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(menu, animated: true)
     }
@@ -920,7 +977,6 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                 Task {
                     do {
                         try await self.api.report(["catalog_id": item.id], reason: reason)
-                        self.showAlert("Your report was submitted.")
                     } catch { self.showAlert(error.localizedDescription) }
                 }
             })

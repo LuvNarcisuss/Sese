@@ -1,14 +1,23 @@
 import UIKit
 
-final class CommunityWorksPage: CityPage {
+final class CommunityWorksPage: CityPage, SafetyObserving {
     private var loadTask: Task<Void, Never>?
     private let list = Theme.stack()
+
+    private var displayedWorks: [MemberWork] = []
 
     init(api: CommunityAPI) { super.init("Community videos", api: api) }
     required init?(coder: NSCoder) { return nil }
 
+    func safetyDidChange() {
+        displayedWorks.removeAll { api.isHidden($0) }
+        renderWorks()
+        reload()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         body.addArrangedSubview(Theme.button("Submit a video", icon: "shorts", accent: true) { [weak self] in
             guard let self else { return }
             self.push(SubmitWorkPage(api: self.api))
@@ -30,30 +39,8 @@ final class CommunityWorksPage: CityPage {
                 let works = try await api.works()
                 try Task.checkCancellation()
                 showStatus(nil)
-                list.clear()
-                if works.isEmpty {
-                    list.addArrangedSubview(Theme.empty("No community videos yet", "Approved videos from members appear here."))
-                }
-                for work in works {
-                    let openProfile: () -> Void = { [weak self] in
-                        guard let self else { return }
-                        self.push(ProfilePage(memberID: work.ownerId, api: self.api))
-                    }
-                    let name = work.author?.displayName ?? "City Resident"
-                    let avatar = MemberAvatar.button(work.author?.avatar, size: Theme.iconSize, label: "Open \(name)’s profile",
-                                                     memberID: work.ownerId, action: openProfile)
-                    let author = Theme.stack([avatar, Theme.textAction(name, action: openProfile)], spacing: 8, axis: .horizontal)
-                    author.alignment = .center
-                    list.addArrangedSubview(Theme.card([
-                        Theme.label(work.title, size: 23, display: true),
-                        Theme.label(work.caption, color: Theme.secondary),
-                        author,
-                        Theme.button("Open video", icon: "shorts") { [weak self] in
-                            guard let self else { return }
-                            self.push(MemberWorkPage(work: work, api: self.api))
-                        }
-                    ]))
-                }
+                displayedWorks = works
+                renderWorks()
                 pageRefresh.finish()
             } catch {
                 guard !Task.isCancelled else { return }
@@ -65,9 +52,37 @@ final class CommunityWorksPage: CityPage {
             }
         }
     }
+
+    private func renderWorks() {
+        let works = displayedWorks.filter { !api.isHidden($0) }
+        list.clear()
+        if works.isEmpty {
+            list.addArrangedSubview(Theme.empty("No community videos yet", "Approved videos from members appear here."))
+        }
+        for work in works {
+            let openProfile: () -> Void = { [weak self] in
+                guard let self else { return }
+                self.push(ProfilePage(memberID: work.ownerId, api: self.api))
+            }
+            let name = work.author?.displayName ?? "City Resident"
+            let avatar = MemberAvatar.button(work.author?.avatar, size: Theme.iconSize, label: "Open \(name)’s profile",
+                                             memberID: work.ownerId, action: openProfile)
+            let author = Theme.stack([avatar, Theme.textAction(name, action: openProfile)], spacing: 8, axis: .horizontal)
+            author.alignment = .center
+            list.addArrangedSubview(Theme.card([
+                Theme.label(work.title, size: 23, display: true),
+                Theme.label(work.caption, color: Theme.secondary),
+                author,
+                Theme.button("Open video", icon: "shorts") { [weak self] in
+                    guard let self else { return }
+                    self.push(MemberWorkPage(work: work, api: self.api))
+                }
+            ]))
+        }
+    }
 }
 
-final class MemberWorkPage: CityPage {
+final class MemberWorkPage: CityPage, SafetyObserving {
     private var work: MemberWork
     private var reloadTask: Task<Void, Never>?
     private var engagement: PublicationReactionBar?
@@ -79,8 +94,16 @@ final class MemberWorkPage: CityPage {
 
     required init?(coder: NSCoder) { nil }
 
+    func safetyDidChange() {
+        reloadTask?.cancel()
+        if api.isHidden(work) { closeHiddenContent(); return }
+        reloadWork()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
+        guard !api.isHidden(work) else { closeHiddenContent(); return }
         enableRefresh { [weak self] in self?.reloadWork() }
         renderWork()
     }
@@ -101,9 +124,18 @@ final class MemberWorkPage: CityPage {
             engagement = bar
         }
         if work.ownerId != api.memberID {
-            actions.addArrangedSubview(Theme.moreIcon(label: "Report video") { [weak self] in
+            actions.addArrangedSubview(Theme.moreIcon(label: "Video options") { [weak self] in
                 guard let self else { return }
-                self.report(["work_id": self.work.id.uuidString])
+                self.menu("Video options", choices: [
+                    ("Report video", .destructive, { [weak self] in
+                        guard let self else { return }
+                        self.report(["work_id": self.work.id.uuidString])
+                    }),
+                    ("Block author", .destructive, { [weak self] in
+                        guard let self else { return }
+                        self.confirmMemberBlock(self.work.ownerId, api: self.api)
+                    })
+                ])
             })
         }
     }
@@ -115,7 +147,7 @@ final class MemberWorkPage: CityPage {
             do {
                 let rows = try await api.works(owner: work.ownerId, ids: [work.id])
                 try Task.checkCancellation()
-                guard let updated = rows.first else { throw CommunityError.unavailable }
+                guard let updated = rows.first else { closeHiddenContent(); return }
                 work = updated
                 renderWork()
                 if let engagement {

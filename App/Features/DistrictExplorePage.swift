@@ -94,10 +94,11 @@ private final class DistrictStreetMap: UIView {
     }
 }
 
-final class DistrictExplorePage: CityPage {
+final class DistrictExplorePage: CityPage, SafetyObserving {
     private let artwork: String
     private let overview: String
     private let places: [DistrictPlace]
+    private weak var guideButton: UIButton?
     private let guide: CatalogItem?
     private let visitsKey: String
     private let progress = Theme.label("", size: 16, color: Theme.mint, display: true)
@@ -116,8 +117,13 @@ final class DistrictExplorePage: CityPage {
 
     required init?(coder: NSCoder) { nil }
 
+    func safetyDidChange() {
+        guideButton?.isHidden = guide.map(api.isHidden) ?? true
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeSafetyChanges()
         body.addArrangedSubview(Theme.label(overview, color: Theme.secondary))
         body.addArrangedSubview(progress)
         map.heightAnchor.constraint(equalTo: map.widthAnchor, multiplier: 0.66).isActive = true
@@ -129,10 +135,13 @@ final class DistrictExplorePage: CityPage {
             self?.pageRefresh.finish()
         }
         if let guide {
-            body.addArrangedSubview(Theme.button("Read the district guide") { [weak self] in
+            let button = Theme.button("Read the district guide") { [weak self] in
                 guard let self else { return }
                 self.push(CatalogDetail(items: [guide], index: 0, api: self.api))
-            })
+            }
+            body.addArrangedSubview(button)
+            guideButton = button
+            safetyDidChange()
         }
     }
 
