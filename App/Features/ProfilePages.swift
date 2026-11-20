@@ -3,17 +3,39 @@ import StoreKit
 
 @MainActor
 enum MemberAvatar {
+    struct EditorialPortrait: Decodable {
+        let id: String
+        let displayName: String
+        let credit: String
+        let sourceUrl: URL
+    }
+
+    static let publishedPortraits = (try? Resources.decode([EditorialPortrait].self, "EditorialPortraits.json")) ?? []
+
     struct Choice {
         let id: String
         let name: String
+        let photo: URL?
         let crop: CGRect?
     }
 
     static let choices: [Choice] = [
-        Choice(id: "expo-judy", name: "Judy Hopps cosplay", crop: CGRect(x: 410, y: 135, width: 373, height: 373)),
-        Choice(id: "expo-nick", name: "Nick Wilde cosplay", crop: CGRect(x: 249, y: 0, width: 303, height: 303)),
-        Choice(id: "expo-duo", name: "Anime Expo duo", crop: CGRect(x: 115, y: 0, width: 740, height: 740)),
-        Choice(id: "fan-duo", name: "KodachiCon duo", crop: CGRect(x: 355, y: 255, width: 920, height: 920))
+        Choice(id: "expo-judy", name: "Judy Hopps cosplay", photo: Artwork.expoPortrait, crop: CGRect(x: 410, y: 135, width: 373, height: 373)),
+        Choice(id: "expo-nick", name: "Nick Wilde cosplay", photo: Artwork.expoPortrait, crop: CGRect(x: 249, y: 0, width: 303, height: 303)),
+        Choice(id: "expo-duo", name: "Anime Expo duo", photo: Artwork.expoPortrait, crop: CGRect(x: 115, y: 0, width: 740, height: 740)),
+        Choice(id: "fan-duo", name: "KodachiCon duo", photo: Artwork.fanPortrait, crop: CGRect(x: 355, y: 255, width: 920, height: 920))
+    ]
+    private static let editorialPortraits = publishedPortraits.map {
+        Choice(id: $0.id, name: $0.displayName, photo: Artwork.shortsImage($0.id), crop: nil)
+    } + [
+        Choice(id: "desk-fox", name: "Fox costume", photo: Artwork.shortsImage("fox-costume-in-motion"),
+               crop: CGRect(x: 170, y: 223, width: 330, height: 330)),
+        Choice(id: "desk-meetup", name: "Meetup costume", photo: Artwork.shortsImage("costume-meetup-hug"),
+               crop: CGRect(x: 44, y: 171, width: 375, height: 375)),
+        Choice(id: "desk-parade", name: "Parade costume", photo: Artwork.shortsImage("narcon-conga-line"),
+               crop: CGRect(x: 470, y: 686, width: 228, height: 228)),
+        Choice(id: "desk-kodachi", name: "KodachiCon portrait", photo: Artwork.fanPortrait,
+               crop: CGRect(x: 755, y: 365, width: 500, height: 500))
     ]
     static let credit = URL(string: "https://commons.wikimedia.org/wiki/File:Cosplay_of_Judy_Hopps_and_Nick_Wilde_from_Zootopia_at_Anime_Expo_2016_(28086759383).jpg")
     static let fanCredit = URL(string: "https://commons.wikimedia.org/wiki/File:KodachiCon_2026_19_-_Judy_%26_Nick.jpg")
@@ -22,10 +44,9 @@ enum MemberAvatar {
         let avatar = UIImageView()
         avatar.contentMode = .scaleAspectFill
         let fallbackIndex = Int(memberID?.uuid.0 ?? 0) % choices.count
-        let choice = choices.first { $0.id == id } ?? choices[fallbackIndex]
+        let choice = choices.first { $0.id == id } ?? editorialPortraits.first { $0.id == id } ?? choices[fallbackIndex]
         Task { [weak avatar] in
-            let url = choice.id == "fan-duo" ? Artwork.fanPortrait : Artwork.expoPortrait
-            guard let photo = await Artwork.image(at: url) else { return }
+            guard let photo = await Artwork.image(at: choice.photo) else { return }
             let crop = choice.crop.flatMap { photo.cgImage?.cropping(to: $0) }
             avatar?.image = crop.map { UIImage(cgImage: $0) } ?? photo
         }
@@ -67,6 +88,7 @@ final class ProfilePage: CityPage, SafetyObserving {
     }
 
     private let memberID: UUID
+    private let commentSource: String?
     private let wallet: Wallet?
     private let onSignOut: (() -> Void)?
     private let avatar = Theme.stack()
@@ -92,8 +114,9 @@ final class ProfilePage: CityPage, SafetyObserving {
     private var loadTask: Task<Void, Never>?
     private var own: Bool { memberID == api.memberID }
 
-    init(memberID: UUID, api: CommunityAPI, wallet: Wallet? = nil, onSignOut: (() -> Void)? = nil) {
+    init(memberID: UUID, api: CommunityAPI, wallet: Wallet? = nil, commentID: UUID? = nil, onSignOut: (() -> Void)? = nil) {
         self.memberID = memberID
+        self.commentSource = commentID.map { "comment:" + $0.uuidString.lowercased() }
         self.wallet = wallet
         self.onSignOut = onSignOut
         super.init(memberID == api.memberID ? "Me" : "Profile", api: api)
@@ -122,9 +145,8 @@ final class ProfilePage: CityPage, SafetyObserving {
                 self.push(SettingsPage(memberID: self.memberID, api: self.api, onSignOut: onSignOut))
             })
         } else if !own {
-            actions.addArrangedSubview(Theme.moreIcon(label: "Report member") { [weak self] in
-                guard let self, self.profile != nil else { return }
-                self.report(["reported_id": self.memberID.uuidString])
+            actions.addArrangedSubview(Theme.moreIcon(label: "More options") { [weak self] in
+                self?.showMemberOptions()
             })
         }
         let identity = Theme.stack([avatar, Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
@@ -144,7 +166,6 @@ final class ProfilePage: CityPage, SafetyObserving {
                                                    name: Wallet.didChange, object: wallet)
         }
         if !own {
-            relationshipActions.addArrangedSubview(Theme.button("Block") { [weak self] in self?.confirmBlock() })
             body.addArrangedSubview(relationshipActions)
         }
         body.addArrangedSubview(categories)
@@ -170,17 +191,31 @@ final class ProfilePage: CityPage, SafetyObserving {
             guard let self else { return }
             var partialFailure = false
             do {
-                async let member = api.member(memberID)
+                async let member = api.visibleMember(memberID)
                 async let counts = api.counts(memberID)
                 async let follows = api.follows()
                 async let memberWorks = api.works(owner: memberID)
                 async let cosplay = try? api.cosplayPosts(owner: memberID)
                 async let catalog = api.catalog()
-                let (person, countsValue, followsValue, ownedWorks, availableCatalog) =
-                    try await (member, counts, follows, memberWorks, catalog)
+                guard let person = try await member else {
+                    guard !Task.isCancelled else { return }
+                    guard !own, commentSource != nil else { throw CommunityError.unavailable }
+                    profile = nil
+                    name.text = "Private member"
+                    bio.text = "This profile is unavailable to you."
+                    avatar.clear()
+                    avatar.addArrangedSubview(MemberAvatar.view(nil, size: 70, memberID: memberID))
+                    for section in [metrics, relationshipActions, categories, content] { section.isHidden = true }
+                    showStatus(nil)
+                    pageRefresh.finish()
+                    return
+                }
+                let (countsValue, followsValue, ownedWorks, availableCatalog) =
+                    try await (counts, follows, memberWorks, catalog)
                 let ownedCosplay = await cosplay
                 partialFailure = ownedCosplay == nil
                 guard !Task.isCancelled else { return }
+                for section in [metrics, relationshipActions, categories, content] { section.isHidden = false }
                 let previous = profile
                 profile = person
                 stats = countsValue
@@ -383,10 +418,16 @@ final class ProfilePage: CityPage, SafetyObserving {
                 self.alert("Follow each other to start a conversation.")
             }
         }
-        let block = Theme.button("Block") { [weak self] in self?.confirmBlock() }
         let accessible = traitCollection.preferredContentSizeCategory.isAccessibilityCategory
-        let row = Theme.stack([follow, message, block], spacing: 6, axis: accessible ? .vertical : .horizontal)
+        let row = Theme.stack([follow, message], spacing: 6, axis: accessible ? .vertical : .horizontal)
         row.distribution = .fillEqually
+        message.configuration?.imagePlacement = .leading
+        if !accessible {
+            for button in [follow, message] {
+                button.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12)
+            }
+            row.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        }
         relationshipActions.addArrangedSubview(row)
     }
 
@@ -397,8 +438,22 @@ final class ProfilePage: CityPage, SafetyObserving {
         }
     }
 
-    private func confirmBlock() {
-        confirmMemberBlock(memberID, api: api)
+    private func showMemberOptions() {
+        guard !own, !api.isBlocked(memberID) else { return }
+        menu("Profile options", choices: [
+            ("Report user", .destructive, { [weak self] in
+                guard let self else { return }
+                guard self.profile != nil || self.commentSource != nil else {
+                    self.alert("Profile unavailable. Refresh the profile and try again.")
+                    return
+                }
+                self.reportMember(self.memberID, name: self.profile?.displayName, source: self.commentSource, api: self.api)
+            }),
+            ("Block user", .destructive, { [weak self] in
+                guard let self else { return }
+                self.confirmMemberBlock(self.memberID, name: self.profile?.displayName, api: self.api, source: self.commentSource)
+            })
+        ])
     }
 }
 
@@ -413,16 +468,37 @@ func profileStat(_ value: Int?, title: String) -> UIView {
 
 @MainActor
 func profileTabs(_ names: [String], selected: String, compact: Bool = false, choose: @escaping (String) -> Void) -> UIStackView {
-    let row = Theme.stack(names.map { name in
-        let button = Theme.button(name, accent: selected == name) { choose(name) }
-        if compact {
-            button.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 4, bottom: 10, trailing: 4)
-            button.titleLabel?.adjustsFontSizeToFitWidth = true
-            button.titleLabel?.minimumScaleFactor = 0.4
+    let buttons: [UIButton] = names.map { name in
+        let active = selected == name
+        let button = UIButton(type: .custom)
+        button.addAction(UIAction { _ in choose(name) }, for: .touchUpInside)
+        button.accessibilityLabel = name
+        button.accessibilityTraits = active ? [.button, .selected] : .button
+        button.setAttributedTitle(NSAttributedString(string: name, attributes: [
+            .font: Theme.font(compact ? 19 : 23, display: true),
+            .foregroundColor: active ? Theme.mint : Theme.paper,
+            .kern: 0.65
+        ]), for: .normal)
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        if active, let label = button.titleLabel {
+            let underline = UIView()
+            underline.backgroundColor = Theme.gold
+            underline.layer.cornerRadius = 1.5
+            underline.isUserInteractionEnabled = false
+            underline.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(underline)
+            NSLayoutConstraint.activate([
+                underline.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 2),
+                underline.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+                underline.trailingAnchor.constraint(equalTo: label.trailingAnchor),
+                underline.heightAnchor.constraint(equalToConstant: 3),
+                underline.bottomAnchor.constraint(lessThanOrEqualTo: button.bottomAnchor)
+            ])
         }
-        button.accessibilityTraits = selected == name ? [.button, .selected] : .button
         return button
-    }, spacing: 8, axis: .horizontal)
+    }
+    let accessible = UITraitCollection.current.preferredContentSizeCategory.isAccessibilityCategory
+    let row = Theme.stack(buttons, spacing: 4, axis: accessible ? .vertical : .horizontal)
     row.distribution = .fillEqually
     return row
 }
@@ -492,6 +568,10 @@ final class SettingsPage: CityPage {
             Theme.button("Reported videos") { [weak self] in
                 guard let self else { return }
                 self.push(SafetyHistoryPage(.reports, api: self.api))
+            },
+            Theme.button("Reported comments") { [weak self] in
+                guard let self else { return }
+                self.push(SafetyHistoryPage(.comments, api: self.api))
             }
         ]))
         body.addArrangedSubview(Theme.card([
@@ -516,9 +596,9 @@ final class SettingsPage: CityPage {
         let title = delete ? "Delete your account?" : "Sign out?"
         let message = delete ? "Your community profile, reactions, messages, and shared chat photos will be removed." :
             "Use the same Apple Account to sign back in and access your community profile on this device."
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: delete ? "Delete account" : "Sign out", style: .destructive) { [weak self] _ in
+        let alert = ThemedDialog(title: title, message: message, preferredStyle: .alert)
+        alert.addChoice("Cancel", style: .cancel)
+        alert.addChoice(delete ? "Delete account" : "Sign out", style: .destructive) { [weak self] in
             guard let self else { return }
             Task {
                 do {
@@ -526,7 +606,7 @@ final class SettingsPage: CityPage {
                     self.onSignOut()
                 } catch { self.alert(error.localizedDescription) }
             }
-        })
+        }
         present(alert, animated: true)
     }
 }
@@ -625,7 +705,15 @@ private enum SafetyHistoryKind: String {
     case blocks = "block"
     case reports = "report"
 
-    var title: String { self == .blocks ? "Blocked members" : "Reported videos" }
+    case comments = "comment"
+
+    var title: String {
+        switch self {
+        case .blocks: return "Blocked members"
+        case .reports: return "Reported videos"
+        case .comments: return "Reported comments"
+        }
+    }
     var action: String { self == .blocks ? "Unblock" : "Withdraw report" }
 }
 
@@ -682,7 +770,7 @@ private final class SafetyHistoryPage: CityPage {
     private func render() {
         body.clear()
         if records.isEmpty {
-            let message = kind == .blocks ? "Members you block will appear here." : "Videos you report will appear here."
+            let message = kind == .blocks ? "Members you block will appear here." : "Reported items will appear here."
             body.addArrangedSubview(Theme.empty("No " + kind.title.lowercased(), message))
             return
         }
@@ -702,9 +790,9 @@ private final class SafetyHistoryPage: CityPage {
             row.accessibilityLabel = [entry.label, entry.detail].filter { !$0.isEmpty }.joined(separator: ", ")
             row.accessibilityHint = kind == .blocks ? "Opens unblock options." : "Opens report withdrawal options."
             row.accessibilityIdentifier = "safety." + kind.rawValue + "." + entry.targetKey
-            row.menu = UIMenu(children: [
-                UIAction(title: kind.action, attributes: .destructive) { _ in confirm() }
-            ])
+            let press = UILongPressGestureRecognizer(target: self, action: #selector(showRecordOptions(_:)))
+            press.name = entry.targetKey
+            row.addGestureRecognizer(press)
             row.isEnabled = !pending.contains(entry.targetKey)
             if kind == .reports {
                 let cover = EditorialImage(coverURL: entry.coverUrl, videoURL: api.reportedPreviewURL(entry))
@@ -719,17 +807,23 @@ private final class SafetyHistoryPage: CityPage {
         }
     }
 
+    @objc private func showRecordOptions(_ press: UILongPressGestureRecognizer) {
+        guard press.state == .began, presentedViewController == nil,
+              let record = records.first(where: { $0.targetKey == press.name }) else { return }
+        menu(kind.title, choices: [(kind.action, .destructive, { [weak self] in self?.confirmUndo(record) })])
+    }
+
     private func confirmUndo(_ entry: SafetyEntry) {
         guard let owner, api.memberID == owner, presentedViewController == nil,
               !pending.contains(entry.targetKey) else { return }
         let message = kind == .blocks
-            ? "Their eligible content can appear again. Videos you reported stay hidden."
-            : "This video can appear again if it is available and you have not blocked its publisher."
+            ? "Their eligible content can appear again. Items you reported stay hidden."
+            : "This item can appear again if it is available and its author is visible."
         let detail = kind == .reports ? entry.label + "\n" + entry.detail : entry.label
-        let dialog = UIAlertController(title: kind.action + "?", message: detail + "\n\n" + message,
+        let dialog = ThemedDialog(title: kind.action + "?", message: detail + "\n\n" + message,
                                        preferredStyle: .alert)
-        dialog.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        dialog.addAction(UIAlertAction(title: kind.action, style: .destructive) { [weak self] _ in self?.undo(entry) })
+        dialog.addChoice("Cancel", style: .cancel)
+        dialog.addChoice(kind.action, style: .destructive) { [weak self] in self?.undo(entry) }
         present(dialog, animated: true)
     }
 
@@ -743,7 +837,7 @@ private final class SafetyHistoryPage: CityPage {
                 case .blocks:
                     guard let peer = UUID(uuidString: entry.targetKey) else { throw CommunityError.unavailable }
                     try await api.setRelationship("blocks", peer: peer, enabled: false)
-                case .reports:
+                case .reports, .comments:
                     try await api.withdrawReport(entry)
                 }
                 guard api.memberID == owner else { return }
@@ -773,6 +867,12 @@ final class CreditsPage: CityPage {
         super.viewDidLoad()
         body.addArrangedSubview(Theme.empty("Fan community", "Zootopia and its characters belong to Disney. This community is independently operated."))
         body.addArrangedSubview(Theme.empty("Artwork and type", "The interface artwork was created with ImageGen. Fredoka and Comic Neue are distributed under the SIL Open Font License."))
+        for portrait in MemberAvatar.publishedPortraits {
+            body.addArrangedSubview(Theme.card([
+                Theme.label("\(portrait.displayName) · Portrait crop", display: true),
+                Theme.textAction(portrait.credit) { [weak self] in self?.open(portrait.sourceUrl) }
+            ]))
+        }
         body.addArrangedSubview(credits)
         enableRefresh { [weak self] in self?.reload() }
         reload()
@@ -1033,12 +1133,12 @@ final class WalletPage: CityPage {
 
     private func confirmPurchase(_ offer: WalletOffer) {
         guard !buying, let product = products[offer.productID], presentedViewController == nil else { return }
-        let confirmation = UIAlertController(title: "Buy \(offer.diamonds.formatted()) diamonds?",
+        let confirmation = ThemedDialog(title: "Buy \(offer.diamonds.formatted()) diamonds?",
                                              message: product.displayPrice, preferredStyle: .alert)
-        confirmation.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        confirmation.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
+        confirmation.addChoice("Cancel", style: .cancel)
+        confirmation.addChoice("Continue", style: .default) { [weak self] in
             self?.buy(product)
-        })
+        }
         present(confirmation, animated: true)
     }
 

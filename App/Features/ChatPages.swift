@@ -341,6 +341,10 @@ final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegat
             guard let self else { return }
             self.push(ProfilePage(memberID: self.peerID, api: self.api))
         })
+        actions.addArrangedSubview(Theme.moreIcon(label: "Member options") { [weak self] in
+            guard let self else { return }
+            self.menu("Member options", choices: self.authorOptions(self.peerID, name: self.heading, source: nil, api: self.api))
+        })
         let send = Theme.button("Send", accent: true) { [weak self] in self?.send() }
         send.isEnabled = false
         sendButton = send
@@ -435,8 +439,15 @@ final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegat
                 card.addArrangedSubview(Theme.label(message.body))
             }
             if !own {
-                card.addArrangedSubview(Theme.button("Report message") { [weak self] in
-                    self?.report(["message_id": message.id.uuidString])
+                card.addArrangedSubview(Theme.moreIcon(label: "Message options") { [weak self] in
+                    guard let self else { return }
+                    let source = "message:" + message.id.uuidString.lowercased()
+                    self.menu("Message options", choices: [
+                        ("Report message", .destructive, { [weak self] in
+                            guard let self else { return }
+                            self.report(["message_id": message.id.uuidString], subject: "message", detail: "From " + self.heading)
+                        })
+                    ] + self.authorOptions(message.senderId, name: self.heading, source: source, api: self.api))
                 })
             }
             list.addArrangedSubview(card)

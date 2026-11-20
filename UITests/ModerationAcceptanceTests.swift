@@ -17,6 +17,64 @@ final class ModerationAcceptanceTests: XCTestCase {
         exercise(unblockFirst: false)
     }
 
+    func testCommentReportUpdatesThreadAndCanBeWithdrawn() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ModerationAcceptance", "-PublicCommentAuthor", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let entry = app.buttons["entry.moderationAcceptance"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        app.buttons["entry.consent"].tap()
+        entry.tap()
+        app.buttons["Search shorts"].tap()
+        let results = app.scrollViews["shorts.search.results"]
+        let clip = results.buttons[unrelated]
+        XCTAssertTrue(clip.waitForExistence(timeout: 10))
+        clip.tap()
+        app.buttons["shorts.comments"].tap()
+        let commentMenu = app.buttons["Comment options"].firstMatch
+        XCTAssertTrue(commentMenu.waitForExistence(timeout: 10))
+        commentMenu.tap()
+        app.otherElements["dialog.Comment options"].buttons["Report author"].tap()
+        let userReasons = app.otherElements["dialog.Report user"]
+        let namedAccount = NSPredicate(format: "label BEGINSWITH %@", "Night Weaver")
+        XCTAssertTrue(userReasons.staticTexts.matching(namedAccount).firstMatch.waitForExistence(timeout: 5))
+        tapSettled(userReasons.buttons["Spam"])
+        let userResult = app.otherElements["dialog.User reported."]
+        XCTAssertTrue(userResult.staticTexts.matching(namedAccount).firstMatch.waitForExistence(timeout: 10))
+        userResult.buttons["OK"].tap()
+        XCTAssertTrue(app.staticTexts["Midnight costume rehearsal."].exists)
+
+        commentMenu.tap()
+        app.otherElements["dialog.Comment options"].buttons["Block author"].tap()
+        tapSettled(app.otherElements["dialog.Block Night Weaver?"].buttons["Cancel"])
+        commentMenu.tap()
+        app.otherElements["dialog.Comment options"].buttons["Report comment"].tap()
+        let reasons = app.otherElements["dialog.Report comment"]
+        let excerpt = "“Midnight costume rehearsal.”"
+        XCTAssertTrue(reasons.staticTexts[excerpt].waitForExistence(timeout: 5))
+        tapSettled(reasons.buttons["Spam"])
+        let saved = app.otherElements["dialog.Comment reported."]
+        XCTAssertTrue(saved.waitForExistence(timeout: 10))
+        XCTAssertTrue(saved.staticTexts[excerpt].exists)
+        saved.buttons["OK"].tap()
+        XCTAssertEqual(app.staticTexts["comments.total"].label, "0 comments")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts[unrelated].exists)
+        app.tabBars.buttons["Me"].tap()
+        app.buttons["Settings"].tap()
+        app.buttons["Reported comments"].tap()
+        let record = app.buttons["safety.comment.comment:15000000-0000-4000-8000-000000000003"]
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
+        XCTAssertTrue(record.label.contains("Midnight costume rehearsal."))
+        record.press(forDuration: 1)
+        app.buttons["Withdraw report"].firstMatch.tap()
+        app.otherElements["dialog.Withdraw report?"].buttons["Withdraw report"].tap()
+        XCTAssertTrue(app.staticTexts["No reported comments"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Shorts"].tap()
+        app.buttons["shorts.comments"].tap()
+        XCTAssertTrue(app.staticTexts["Midnight costume rehearsal."].waitForExistence(timeout: 10))
+    }
+
     private func exercise(unblockFirst: Bool) {
         let app = XCUIApplication()
         app.launchArguments = ["-ModerationAcceptance", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -29,26 +87,29 @@ final class ModerationAcceptanceTests: XCTestCase {
         let options = app.buttons["Video options"].firstMatch
         XCTAssertTrue(app.staticTexts[reportedVideo].waitForExistence(timeout: 10))
         options.tap()
-        app.sheets.buttons["Report video"].tap()
-        let reasons = app.sheets["Report video"]
+        app.otherElements["dialog.Video options"].buttons["Report video"].tap()
+        let reasons = app.otherElements["dialog.Report video"]
         let reason = reasons.buttons["Harassment"]
         tapSettled(reason)
         XCTAssertTrue(reasons.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[unrelated].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.alerts.firstMatch.exists)
+        let submitted = app.otherElements["dialog.Video reported."]
+        XCTAssertTrue(submitted.waitForExistence(timeout: 10))
+        submitted.buttons["OK"].tap()
         verifyVideos(app, reported: false, other: true)
 
         app.buttons["shorts.comments"].tap()
         let sheet = app.scrollViews["page.scroll"].firstMatch
-        let block = sheet.buttons["Block author"].firstMatch
+        let block = sheet.buttons["Comment options"].firstMatch
         XCTAssertTrue(block.waitForExistence(timeout: 10))
         if !block.isHittable { sheet.swipeUp() }
         block.tap()
-        app.alerts.buttons["Block"].tap()
-        XCTAssertTrue(app.staticTexts["Start the conversation"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["Midnight costume rehearsal."].exists)
-        XCTAssertFalse(app.alerts.firstMatch.exists)
-        app.buttons["Done"].tap()
+        app.otherElements["dialog.Comment options"].buttons["Block author"].tap()
+        app.otherElements["dialog.Block this member?"].buttons["Block"].tap()
+        let success = app.otherElements["dialog.User blocked."]
+        XCTAssertTrue(success.waitForExistence(timeout: 10))
+        success.buttons["OK"].tap()
+        XCTAssertFalse(sheet.exists)
         verifyVideos(app, reported: false, other: false)
         undo(app, unblock: unblockFirst)
         verifyVideos(app, reported: false, other: unblockFirst)
@@ -98,7 +159,7 @@ final class ModerationAcceptanceTests: XCTestCase {
         let action = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", verb)).firstMatch
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         action.tap()
-        app.alerts.buttons[verb].tap()
+        app.otherElements["dialog." + verb + "?"].buttons[verb].tap()
         let empty = unblock ? "No blocked members" : "No reported videos"
         XCTAssertTrue(app.staticTexts[empty].waitForExistence(timeout: 10))
         app.buttons["Back"].tap()
@@ -145,7 +206,7 @@ final class ReportedCoverAcceptanceTests: XCTestCase {
         let action = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Withdraw report")).firstMatch
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         action.tap()
-        let confirm = app.alerts["Withdraw report?"]
+        let confirm = app.otherElements["dialog.Withdraw report?"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.buttons["Cancel"].tap()
         XCTAssertTrue(card.exists)

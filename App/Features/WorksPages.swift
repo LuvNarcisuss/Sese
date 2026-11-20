@@ -129,13 +129,9 @@ final class MemberWorkPage: CityPage, SafetyObserving {
                 self.menu("Video options", choices: [
                     ("Report video", .destructive, { [weak self] in
                         guard let self else { return }
-                        self.report(["work_id": self.work.id.uuidString])
-                    }),
-                    ("Block author", .destructive, { [weak self] in
-                        guard let self else { return }
-                        self.confirmMemberBlock(self.work.ownerId, api: self.api)
+                        self.report(["work_id": self.work.id.uuidString], subject: "video", detail: self.work.title)
                     })
-                ])
+                ] + self.authorOptions(self.work.ownerId, name: self.work.author?.displayName, source: "work:" + self.work.id.uuidString.lowercased(), api: self.api))
             })
         }
     }

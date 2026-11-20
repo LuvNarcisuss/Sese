@@ -340,5 +340,41 @@
     ],
     "storage_path": "editorial/shorts/ui/25cfb986-9b53-4dbe-b40d-f6f63f0171b5/save-outline.png",
     "status": "awaiting_upload"
+  },
+  "more": {
+    "generator": "ImageGen",
+    "subject": "Three mint enamel dots in one horizontal row with gold rims and plum outlines.",
+    "source": "exec-5a9f7098-f033-4cfb-ad04-d3732b4b8155.png",
+    "source_dimensions": [
+      2172,
+      724
+    ],
+    "source_sha256": "37e4c0f1b54069bfc7f10e1734922b9e085e66f523c0e7434fdcaeb4938e1987",
+    "bundle": "IconArtwork.plist",
+    "sha256": "cc802e3237fc562a435222e9c4802b9a9774667f73bdd5beb380f271c017e82a"
+  },
+  "dialog-skyline": {
+    "generator": "ImageGen",
+    "subject": "Panoramic violet city rooftops with a crescent moon and amber windows.",
+    "source": "exec-f6dffb71-0af7-43f6-80cc-12a35cfc5d34.png",
+    "source_dimensions": [
+      2172,
+      724
+    ],
+    "source_sha256": "2f5612bb9fec8e9a05fdba3e82e624bcbc247f11d8684beaeb9dfcac8c71babc",
+    "bundle": "IconArtwork.plist",
+    "sha256": "30339ebb2a5a726cb9b8ab61d6196fbeb4e1d7270942ac7801da819fc6299270"
+  },
+  "play": {
+    "generator": "ImageGen",
+    "subject": "Right-pointing mint enamel play triangle with a gold rim and dark plum outline on transparency.",
+    "source": "exec-081d7e2f-c6d1-4cd0-a81b-d0af7185a84a.png",
+    "source_dimensions": [
+      1254,
+      1254
+    ],
+    "source_sha256": "bbebc6bffd1e785afa76bf9f2082e780a652fe16feb9ae3a30d1b4d653247b5a",
+    "bundle": "IconArtwork.plist",
+    "sha256": "f5d5e3e5f39e4bcaa7f47b33eabdd33a287a653b706b7faee210b1372f0cafd2"
   }
 }

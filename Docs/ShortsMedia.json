@@ -139,6 +139,223 @@
         "bytes": 40721,
         "sha256": "0bc3b685f3376e802f9939828a965b1cfc9d9e693ef87e92601551f6769e4821"
       }
+    },
+    {
+      "id": "plaza-pose",
+      "kind": "Cosplay Video",
+      "title": "A pose in the plaza",
+      "description": "A pink-haired performer shifts between poses in the open plaza at Anime Los Angeles.",
+      "credit": "AccessAccess · CC BY 3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0",
+      "position": 240,
+      "poster_at_seconds": 2,
+      "edit": "Muted portrait excerpt. Cropped to the subject.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Anime_Los_Angeles_2023_-_Danganronpa_Cosplay_Gathering_(Friday).webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/e/e0/Anime_Los_Angeles_2023_-_Danganronpa_Cosplay_Gathering_%28Friday%29.webm/Anime_Los_Angeles_2023_-_Danganronpa_Cosplay_Gathering_%28Friday%29.webm.480p.vp9.webm",
+          "start_seconds": 1,
+          "selected_seconds": 10
+        }
+      ],
+      "duration_seconds": 10,
+      "video": {
+        "storage_path": "editorial/shorts/v1/plaza-pose.mp4",
+        "bytes": 2513538,
+        "sha256": "95fa6611a1470a020538fa6981f774a5d84eaa9c884690ff57c55296c8f54ad9"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/plaza-pose.jpg",
+        "bytes": 94191,
+        "sha256": "53204b418920696f3e681735c44dd25257072d3adb499f792191da516121a650"
+      },
+      "publisher_clip": "costume-meetup-hug"
+    },
+    {
+      "id": "comiket-photo-call",
+      "kind": "Cosplay Video",
+      "title": "Inside a Comiket photo call",
+      "description": "A performer holds a pose while photographers frame their shots outside Comiket 105.",
+      "credit": "Benlisquare · CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "position": 250,
+      "poster_at_seconds": 2,
+      "edit": "Muted portrait excerpt. Cropped to the subject.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Cosplay_photography_at_Comiket_105.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cc/Cosplay_photography_at_Comiket_105.webm/Cosplay_photography_at_Comiket_105.webm.480p.vp9.webm",
+          "start_seconds": 5,
+          "selected_seconds": 9
+        }
+      ],
+      "duration_seconds": 9,
+      "video": {
+        "storage_path": "editorial/shorts/v1/comiket-photo-call.mp4",
+        "bytes": 2511067,
+        "sha256": "22cb61c30ef063eb7e6cd1c5ee875ea44dead3d98b94131b66032de8e09f26cd"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/comiket-photo-call.jpg",
+        "bytes": 65245,
+        "sha256": "0a5de4b33c258d36142768829fbcc4c0886acca0d30b2768b60dd6330770f3c8"
+      },
+      "publisher_clip": "ask-before-you-snap"
+    },
+    {
+      "id": "gamescom-costume-walk",
+      "kind": "Cosplay Video",
+      "title": "A walk through Gamescom",
+      "description": "Costumed visitors pause for the camera in the exhibition hall at Gamescom 2023.",
+      "credit": "REZATA · CC BY 3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0",
+      "position": 260,
+      "poster_at_seconds": 2,
+      "edit": "Muted portrait excerpt. Cropped to the subject.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Gamescom_2023_-_Cosplay_Music_Video_-_Short_Cut_Version_-_4K.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/d/db/Gamescom_2023_-_Cosplay_Music_Video_-_Short_Cut_Version_-_4K.webm/Gamescom_2023_-_Cosplay_Music_Video_-_Short_Cut_Version_-_4K.webm.480p.vp9.webm",
+          "start_seconds": 1,
+          "selected_seconds": 10
+        }
+      ],
+      "duration_seconds": 10,
+      "video": {
+        "storage_path": "editorial/shorts/v1/gamescom-costume-walk.mp4",
+        "bytes": 3046501,
+        "sha256": "c583173a7819a674f9b702501e2acef8024eef6aaaa38ea6595ba363f0d39880"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/gamescom-costume-walk.jpg",
+        "bytes": 103254,
+        "sha256": "1dfbfeaca05ebe5da0695e8a9c0357407c88fef213e2387be713d47a3eff41f4"
+      },
+      "publisher_clip": "fox-costume-in-motion"
+    },
+    {
+      "id": "pyrkon-parade",
+      "kind": "Cosplay Video",
+      "title": "Pyrkon parade colors",
+      "description": "Costumed participants pass the crowd outside the exhibition halls at Pyrkon.",
+      "credit": "Rose Abrams · CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0",
+      "position": 270,
+      "poster_at_seconds": 2,
+      "edit": "Muted portrait excerpt. Cropped to the subject.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Pyrkon_2026_furry_parade.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f5/Pyrkon_2026_furry_parade.webm/Pyrkon_2026_furry_parade.webm.480p.vp9.webm",
+          "start_seconds": 3,
+          "selected_seconds": 11
+        }
+      ],
+      "duration_seconds": 11,
+      "video": {
+        "storage_path": "editorial/shorts/v1/pyrkon-parade.mp4",
+        "bytes": 5631710,
+        "sha256": "cd8dcbe4942506a861ced23c88cbf5afc9e00ee09d6a5116007b9f5630792e5c"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/pyrkon-parade.jpg",
+        "bytes": 97668,
+        "sha256": "0fd47687f88c49229728957012d2dd1462e7d475639c5adb5f957119729f2044"
+      },
+      "publisher_clip": "narcon-conga-line"
+    },
+    {
+      "id": "gamescom-emerald-costume",
+      "kind": "Cosplay Video",
+      "title": "Emerald at Gamescom",
+      "description": "A performer in a flowing green costume turns in the Gamescom exhibition hall.",
+      "credit": "REZATA · CC BY 3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0",
+      "position": 280,
+      "poster_at_seconds": 2,
+      "edit": "Cropped around the performer. Audio removed.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Gamescom_2022_K%C3%B6ln-Cologne_-_Cosplay_Music_Video_-_Best_Cosplays_-_4K.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/3/31/Gamescom_2022_K%C3%B6ln-Cologne_-_Cosplay_Music_Video_-_Best_Cosplays_-_4K.webm/Gamescom_2022_K%C3%B6ln-Cologne_-_Cosplay_Music_Video_-_Best_Cosplays_-_4K.webm.480p.vp9.webm",
+          "start_seconds": 26,
+          "selected_seconds": 9
+        }
+      ],
+      "duration_seconds": 9,
+      "video": {
+        "storage_path": "editorial/shorts/v1/gamescom-emerald-costume.mp4",
+        "bytes": 3476434,
+        "sha256": "e2e52c086811b8aa73853d0a2425f890766c45ff05916f34bf24488543b5337a"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/gamescom-emerald-costume.jpg",
+        "bytes": 92042,
+        "sha256": "1ae9aa59850461ac0b41dbd08143469de9d3a56811711217ef839b2c56681799"
+      },
+      "publisher_desk": "wardrobe"
+    },
+    {
+      "id": "smash-photo-session",
+      "kind": "Cosplay Video",
+      "title": "Blue ribbons at SMASH",
+      "description": "A blue-haired cosplayer changes poses for a photographer on the plaza at SMASH.",
+      "credit": "Benlisquare · CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "position": 290,
+      "poster_at_seconds": 2,
+      "edit": "Cropped around the performer. Audio removed.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:Cosplay_photography_at_SMASH_2025.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/6/69/Cosplay_photography_at_SMASH_2025.webm/Cosplay_photography_at_SMASH_2025.webm.480p.vp9.webm",
+          "start_seconds": 9,
+          "selected_seconds": 10
+        }
+      ],
+      "duration_seconds": 10,
+      "video": {
+        "storage_path": "editorial/shorts/v1/smash-photo-session.mp4",
+        "bytes": 2877121,
+        "sha256": "42512afdf67a2211b2e942af2600f076314d50a9524021eebe884cd05999a995"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/smash-photo-session.jpg",
+        "bytes": 77308,
+        "sha256": "65e46a719e2e9e09e3cf3e66aa4219e69ff051719146c141e5eef5dee8660f9c"
+      },
+      "publisher_desk": "camera"
+    },
+    {
+      "id": "wonder-star-staff",
+      "kind": "Cosplay Video",
+      "title": "A star at Wonder Festival",
+      "description": "A performer in violet lifts a crescent staff and turns its gold star toward the camera.",
+      "credit": "ローアングルおじさん/COSPLAY · CC BY 3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0",
+      "position": 300,
+      "poster_at_seconds": 2,
+      "edit": "Rotated to display the original portrait composition upright. Audio removed.",
+      "sources": [
+        {
+          "page_url": "https://commons.wikimedia.org/wiki/File:%E3%83%AF%E3%83%B3%E3%83%80%E3%83%BC%E3%83%95%E3%82%A7%E3%82%B9%E3%83%86%E3%82%A3%E3%83%90%E3%83%AB_2019_%E5%A4%8F_%E3%82%B3%E3%82%B9%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BC%E2%91%A4.webm",
+          "download_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/6/64/%E3%83%AF%E3%83%B3%E3%83%80%E3%83%BC%E3%83%95%E3%82%A7%E3%82%B9%E3%83%86%E3%82%A3%E3%83%90%E3%83%AB_2019_%E5%A4%8F_%E3%82%B3%E3%82%B9%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BC%E2%91%A4.webm/%E3%83%AF%E3%83%B3%E3%83%80%E3%83%BC%E3%83%95%E3%82%A7%E3%82%B9%E3%83%86%E3%82%A3%E3%83%90%E3%83%AB_2019_%E5%A4%8F_%E3%82%B3%E3%82%B9%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BC%E2%91%A4.webm.480p.vp9.webm",
+          "start_seconds": 26,
+          "selected_seconds": 10
+        }
+      ],
+      "duration_seconds": 10,
+      "video": {
+        "storage_path": "editorial/shorts/v1/wonder-star-staff.mp4",
+        "bytes": 5662680,
+        "sha256": "e05a15bcbe8147caab63024d4225733e275a784c82e850248666f77bb218a5a2"
+      },
+      "poster": {
+        "storage_path": "editorial/shorts/v1/wonder-star-staff.jpg",
+        "bytes": 167965,
+        "sha256": "ec4cf7ed08c3abc7c02fe61f1cc48e68d661730b5f799295d46844bd2f0e884d"
+      },
+      "publisher_desk": "cues"
     }
   ]
 }

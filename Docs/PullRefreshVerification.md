@@ -12,8 +12,7 @@ All five root data screens now support manual refresh. Scrollable content/detail
 | --- | --- |
 | Shorts | Pull down to reload the catalog, reactions and counts and start a new order within the active filter. Prefer unseen clips until the round is exhausted. Swiping up from the last clip starts the next lap. A quick downward flick on later clips goes back. A sole eligible clip keeps playing. |
 | Shorts search | The same data, retaining search text and scope. |
-| Creator | Current catalog works and their aggregate engagement counts. |
-| Comments | Stored comment rows and the matching count, retaining the draft. The half-height sheet remains in use. A downward drag refreshes its contents instead of dismissing the sheet; Done closes it. The underlying feed ignores pull gestures while a modal is presented. |
+| Comments | Stored comment rows and the matching count, retaining the draft. Shorts opens comments at medium height. Swipe up to expand or drag the grabber down to return to medium height. Pull to refresh at medium height. Done closes the sheet. Either author link opens the full-screen profile. Back restores the eligible discussion, its draft and its selected height. The underlying feed ignores pull gestures while a modal is presented. |
 | Community videos | Approved member works. |
 | Member video | Current work metadata/status and reactions for approved work. No automatic source playback. |
 | Districts | Remote district guides and the existing local wallet/unlock/build state. |
@@ -25,7 +24,7 @@ All five root data screens now support manual refresh. Scrollable content/detail
 | Members | Discoverable profiles and follow relationships, retaining search/scope. |
 | Conversation | Latest messages and mutual-follow eligibility, preserving the text/photo composer. |
 | Chat photo | Attachment bytes. |
-| Me/member profile | Profile, metrics, relations, authored work, and available collections. Category switches still only rerender the collection region. |
+| Me/member profile (including a Shorts publisher) | Profile, metrics, relations, authored work, and available collections. Category switches still only rerender the collection region. |
 | Wallet | Local balance/history, unfinished-transaction recovery, and StoreKit product prices. Loading ends after recovery and catalog work finish; the existing price timeout remains. |
 | Blocked members | The signed-in account's block list. |
 | Media credits | Current catalog credits, replacing rather than appending rows. |
@@ -63,3 +62,5 @@ Across the three passing ordinary-page cases and the final focused Shorts case, 
 ## Shorts rotation and continuous paging
 
 On November 18, 2026, three serial UI tests passed on Sese UI Acceptance (iPhone 17 Pro, iOS 26.0.1) with the online catalog. With four eligible Shorts, consecutive pulls showed all four before a repeat. The next pull changed the visible clip. Eight upward swipes completed two full laps, and a pull from a later clip selected a different video. With one eligible film clip, a pull and an upward swipe kept the same clip playing. The existing creator, comments, playback, search and community-video refresh test also passed. Result bundle: `/private/tmp/sese-shorts-loop.ejVUhe/Final.xcresult`.
+
+The resizable Shorts discussion and full-screen author route have static source and syntax checks only. The updated UI regression covers author navigation from both sheet heights.

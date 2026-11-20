@@ -243,23 +243,23 @@ final class DistrictMapPage: CityPage, SafetyObserving {
         guard let ledger = try? wallet.ledger(for: memberID), !ledger.isUnlocked(district) else { return }
         let price = district.diamondCost.formatted()
         guard ledger.balance >= district.diamondCost else {
-            let alert = UIAlertController(title: "Not enough diamonds",
+            let alert = ThemedDialog(title: "Not enough diamonds",
                                           message: "\(district.name) costs \(price) diamonds.", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Wallet", style: .default) { [weak self] _ in self?.showWallet() })
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            alert.addChoice("Wallet", style: .default) { [weak self] in self?.showWallet() }
+            alert.addChoice("Cancel", style: .cancel)
             present(alert, animated: true)
             return
         }
-        let alert = UIAlertController(title: "Unlock \(district.name)?",
+        let alert = ThemedDialog(title: "Unlock \(district.name)?",
                                       message: "Spend \(price) diamonds to unlock this district and its places.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Unlock", style: .default) { [weak self] _ in
+        alert.addChoice("Cancel", style: .cancel)
+        alert.addChoice("Unlock", style: .default) { [weak self] in
             guard let self else { return }
             do {
                 try self.wallet.unlock(district, for: self.memberID)
                 self.openDistrict(district)
             } catch { self.alert(error.localizedDescription) }
-        })
+        }
         present(alert, animated: true)
     }
 

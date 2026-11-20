@@ -6,7 +6,7 @@ const db = new PGlite()
 await db.exec(`
 create role authenticated; create role anon; create role service_role bypassrls;
 create schema auth; create schema storage;
-create table auth.users(id uuid primary key, is_anonymous boolean, raw_app_meta_data jsonb);
+create table auth.users(id uuid primary key, is_anonymous boolean, raw_app_meta_data jsonb, banned_until timestamptz, created_at timestamptz, updated_at timestamptz);
 create table auth.identities(user_id uuid, provider text);
 create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
 grant usage on schema auth to authenticated, anon;
@@ -52,4 +52,10 @@ await db.exec(`
 console.log('Historical block and duplicate legacy reports migrated')
 await db.exec(fs.readFileSync('Backend/checks/moderation.sql', 'utf8'))
 console.log('Moderation scenarios passed')
+await db.exec(fs.readFileSync('Backend/checks/comment-moderation.sql', 'utf8'))
+console.log('Comment moderation scenarios passed')
+await db.exec(fs.readFileSync('Backend/checks/profile-video-totals.sql', 'utf8'))
+console.log('Profile video totals passed')
+await db.exec(fs.readFileSync('Backend/checks/editorial-comment-profiles.sql', 'utf8'))
+console.log('Editorial comment profiles passed')
 await db.close()

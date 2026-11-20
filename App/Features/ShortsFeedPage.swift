@@ -20,142 +20,6 @@ private struct HostedShort {
     }
 }
 
-private extension CatalogItem {
-    var creatorName: String { credit.components(separatedBy: " · ").first ?? credit }
-
-    var creatorPortrait: String {
-        switch id {
-        case "fox-costume-in-motion": return "expo-judy"
-        case "narcon-conga-line": return "fan-duo"
-        case "costume-meetup-hug": return "expo-nick"
-        default: return "expo-duo"
-        }
-    }
-}
-
-private final class EditorialShortsProfile: CityPage, SafetyObserving {
-    private let item: CatalogItem
-    private var videos: [CatalogItem]
-    private let openShort: (CatalogItem) -> Void
-    private let metrics = Theme.stack(spacing: 8, axis: .horizontal)
-    private let tabs = Theme.stack()
-    private let gallery = Theme.stack()
-    private var cosplay: [CatalogItem] = []
-    private var selection = "Shorts"
-    private var loadedCosplay = false
-    private var loadTask: Task<Void, Never>?
-
-    init(item: CatalogItem, videos: [CatalogItem], api: CommunityAPI, openShort: @escaping (CatalogItem) -> Void) {
-        self.item = item
-        self.videos = videos
-        self.openShort = openShort
-        super.init("Creator", api: api)
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    func safetyDidChange() {
-        videos.removeAll { api.isHidden($0) }
-        cosplay.removeAll { api.isHidden($0) }
-        showMetrics(videos.compactMap { api.cachedShortCount($0.id) })
-        renderWorks()
-        reload()
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        observeSafetyChanges()
-        let name = Theme.label(item.creatorName, size: 26, display: true)
-        let bio = Theme.label("An editorial collection of credited films and costume work.", color: Theme.secondary)
-        let identity = Theme.stack([MemberAvatar.view(item.creatorPortrait, size: 70), Theme.stack([name, bio], spacing: 4)], axis: .horizontal)
-        identity.alignment = .center
-        metrics.distribution = .fillEqually
-        body.addArrangedSubview(Theme.card([identity, metrics]))
-        let portraitCredit = item.creatorPortrait == "fan-duo" ? MemberAvatar.fanCredit : MemberAvatar.credit
-        body.addArrangedSubview(Theme.textAction("Source and portrait credits") { [weak self] in
-            guard let self else { return }
-            var choices: [(String, UIAlertAction.Style, () -> Void)] = [
-                ("Original video", .default, { [weak self, source = self.item.sourceUrl] in self?.open(source) })
-            ]
-            if let portraitCredit {
-                choices.append(("Cosplay portrait", .default, { [weak self] in self?.open(portraitCredit) }))
-            }
-            self.menu("Credits", choices: choices)
-        })
-        body.addArrangedSubview(tabs)
-        body.addArrangedSubview(gallery)
-        showMetrics(videos.compactMap { api.cachedShortCount($0.id) })
-        renderWorks()
-        enableRefresh { [weak self] in self?.reload() }
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        reload()
-    }
-
-    private func reload() {
-        loadTask?.cancel()
-        loadTask = Task { [weak self, api] in
-            guard let self else { return }
-            do {
-                let catalog = try await api.catalog()
-                let hosted = catalog.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
-                    HostedShort(item: $0, projectURL: api.configuration.url) != nil }
-                let rows = try await api.shortCounts(hosted.map(\.id))
-                try Task.checkCancellation()
-                videos = hosted
-                showMetrics(rows)
-                let hostedIDs = Set(hosted.map(\.id))
-                cosplay = catalog.filter { $0.publisherId == nil && $0.creatorName == item.creatorName &&
-                    ($0.kind == "Cosplay Look" || $0.kind == "Cosplay Video") && !hostedIDs.contains($0.id) }
-                loadedCosplay = true
-                renderWorks()
-                pageRefresh.finish()
-            } catch {
-                guard !Task.isCancelled else { return }
-                pageRefresh.finish(error: "This creator could not be updated. Pull down to try again.")
-            }
-        }
-    }
-
-    private func showMetrics(_ rows: [ShortCounts]?) {
-        metrics.clear()
-        let complete = rows.flatMap { $0.count == videos.count ? $0 : nil }
-        metrics.addArrangedSubview(profileStat(complete?.reduce(0) { $0 + $1.likes }, title: "Likes"))
-        metrics.addArrangedSubview(profileStat(complete?.reduce(0) { $0 + $1.saves }, title: "Saves"))
-        metrics.addArrangedSubview(profileStat(0, title: "Following"))
-        if complete?.contains(where: { $0.isLimited == true }) == true {
-            showStatus("Counts include estimates and available Sese activity.")
-        } else {
-            let estimates = complete?.contains(where: \.editorialBaseline) == true
-            showStatus(estimates ? "Counts include editorial estimates." : nil)
-        }
-    }
-
-    private func renderWorks() {
-        tabs.clear()
-        tabs.addArrangedSubview(profileTabs(["Shorts", "Cosplay"], selected: selection) { [weak self] name in
-            self?.selection = name
-            self?.renderWorks()
-        })
-        gallery.clear()
-        let shown = selection == "Shorts" ? videos : cosplay
-        guard !shown.isEmpty else {
-            let message = loadedCosplay ? "No other cosplay work is credited here." : "Cosplay work is unavailable."
-            gallery.addArrangedSubview(Theme.label(message, color: Theme.secondary))
-            return
-        }
-        addVideoTiles(shown, to: gallery, accessible: traitCollection.preferredContentSizeCategory.isAccessibilityCategory) { [weak self] item in
-            guard let self else { return }
-            if self.selection == "Shorts" { self.openShort(item) }
-            else if let index = shown.firstIndex(where: { $0.id == item.id }) {
-                self.push(CatalogDetail(items: shown, index: index, api: self.api))
-            }
-        }
-    }
-}
-
 private final class ShortsAction: UIButton {
     private let art = UIImageView()
     private let fallback = Theme.label("", size: 12, display: true)
@@ -262,11 +126,6 @@ private final class ShortsClipPage: UIViewController {
         view.backgroundColor = Theme.ink
         view.accessibilityIdentifier = "shorts.clip.\(item.id)"
         let actionSize = Theme.iconTouchSize
-        let avatar = MemberAvatar.button(item.creatorPortrait, size: Theme.iconSize, label: "Open \(item.creatorName)’s creator profile") {
-            [weak self] in self?.openProfile?()
-        }
-        avatar.accessibilityIdentifier = "shorts.creator"
-
         let credit = Theme.label(item.credit, size: 15, display: true)
         credit.numberOfLines = 2
         let title = Theme.label(item.title, size: 22, display: true)
@@ -291,7 +150,17 @@ private final class ShortsClipPage: UIViewController {
         shareAction.accessibilityIdentifier = "shorts.share"
         let counted: [ShortsAction] = [like, commentAction, save, shareAction]
         let actionRows: [UIView] = counted.map { Theme.stack([$0, $0.count], spacing: 0) }
-        let actions = Theme.stack([avatar] + actionRows + [more], spacing: 5)
+        let actions = Theme.stack(spacing: 5)
+        if let publisherID = item.publisherId {
+            let label = item.publisher.map { "Open \($0.displayName)’s profile" } ?? "Open publisher profile"
+            let avatar = MemberAvatar.button(item.publisher?.avatar, size: Theme.iconSize, label: label, memberID: publisherID) {
+                [weak self] in self?.openProfile?()
+            }
+            avatar.accessibilityIdentifier = "shorts.publisher"
+            actions.addArrangedSubview(avatar)
+        }
+        for row in actionRows { actions.addArrangedSubview(row) }
+        actions.addArrangedSubview(more)
         actions.alignment = .center
 
         let gradient = ShortsVideoGradient(frame: .zero)
@@ -376,6 +245,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     private var visible = false
     private var paging = false
     private var overlayOpen = false
+    private var returningDiscussion: (navigation: UINavigationController, item: CatalogItem,
+                                      height: UISheetPresentationController.Detent.Identifier)?
     private var loaded = false
     private var current: ShortsClipPage? { pager.viewControllers?.first as? ShortsClipPage }
 
@@ -386,10 +257,10 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     required init?(coder: NSCoder) { nil }
 
-    func returnFromCreatorProfileIfNeeded() {
+    func returnFromProfileIfNeeded() {
         guard let navigationController,
               let openedPage = navigationController.viewControllers.dropFirst().first,
-              openedPage is EditorialShortsProfile || openedPage is ProfilePage else { return }
+              openedPage is ProfilePage else { return }
         navigationController.popToRootViewController(animated: false)
     }
 
@@ -499,6 +370,12 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         refreshCounts()
         if loaded { refreshVisibleCatalog() }
         playbackVisibilityChanged()
+        if let discussion = returningDiscussion {
+            returningDiscussion = nil
+            if !api.isHidden(discussion.item), presentedViewController == nil {
+                presentComments(discussion.navigation, height: discussion.height)
+            }
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -679,12 +556,8 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         page.share = { [weak self] button in self?.share(item, from: button) }
         page.options = { [weak self] in self?.showVideoOptions(item) }
         page.openProfile = { [weak self] in
-            guard let self, !self.paging else { return }
-            if let id = item.publisherId {
-                self.navigationController?.pushViewController(ProfilePage(memberID: id, api: self.api), animated: true)
-            } else {
-                self.showEditorialProfile(item)
-            }
+            guard let self, !self.paging, let id = item.publisherId else { return }
+            self.navigationController?.pushViewController(ProfilePage(memberID: id, api: self.api), animated: true)
         }
         page.renderEngagement(reactions[item.id] ?? [], counts: api.cachedShortCount(item.id), busy: pending[item.id] ?? [], ready: reactionsReady)
         return page
@@ -889,25 +762,29 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         let navigation = UINavigationController(rootViewController: page)
         navigation.setNavigationBarHidden(true, animated: false)
         navigation.modalPresentationStyle = .pageSheet
-        // Pulling the discussion refreshes it; Done closes the sheet.
         navigation.isModalInPresentation = true
-        if let sheet = navigation.sheetPresentationController {
-            sheet.detents = [.medium()]
-            sheet.prefersGrabberVisible = true
-            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        page.openAuthorProfile = { [weak self, weak navigation] profile in
+            guard let self, let navigation, !navigation.isBeingDismissed,
+                  let host = self.navigationController, host.topViewController === self else { return }
+            let height = navigation.sheetPresentationController?.selectedDetentIdentifier ?? .medium
+            navigation.dismiss(animated: true) { [weak self] in
+                guard let self, host.topViewController === self, !self.api.isHidden(item) else { return }
+                self.returningDiscussion = (navigation, item, height)
+                profile.hidesBottomBarWhenPushed = true
+                host.pushViewController(profile, animated: true)
+            }
         }
-        present(navigation, animated: true)
+        presentComments(navigation, height: .medium)
     }
 
-    private func showEditorialProfile(_ item: CatalogItem) {
-        let videos = catalog.map(\.item).filter { $0.publisherId == nil && $0.creatorName == item.creatorName }
-        let profile = EditorialShortsProfile(item: item, videos: videos, api: api) { [weak self] item in
-            guard let self else { return }
-            if let kind = self.kind, kind != item.kind { self.kind = nil }
-            self.applyFilters(preferredID: item.id)
-            self.navigationController?.popToViewController(self, animated: true)
+    private func presentComments(_ navigation: UINavigationController, height: UISheetPresentationController.Detent.Identifier) {
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.selectedDetentIdentifier = height
+            sheet.prefersGrabberVisible = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = true
         }
-        navigationController?.pushViewController(profile, animated: true)
+        present(navigation, animated: true)
     }
 
     private func refreshCounts() {
@@ -935,60 +812,46 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
 
     private func filter() {
         guard !paging else { return }
-        let menu = UIAlertController(title: "Filter shorts", message: nil, preferredStyle: .actionSheet)
-        menu.addAction(UIAlertAction(title: "All shorts", style: .default) { [weak self] _ in
+        let menu = ThemedDialog(title: "Filter shorts", message: nil, preferredStyle: .actionSheet)
+        menu.addChoice("All shorts", style: .default) { [weak self] in
             self?.kind = nil
             self?.applyFilters()
-        })
+        }
         for kind in Set(catalog.map { $0.item.kind }).sorted() {
-            menu.addAction(UIAlertAction(title: kind, style: .default) { [weak self] _ in
+            menu.addChoice(kind, style: .default) { [weak self] in
                 self?.kind = kind
                 self?.applyFilters()
-            })
+            }
         }
-        menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        menu.addChoice("Cancel", style: .cancel)
         present(menu, animated: true)
     }
 
     private func showVideoOptions(_ item: CatalogItem) {
         guard !paging else { return }
-        let menu = UIAlertController(title: "Video options", message: nil, preferredStyle: .actionSheet)
-        menu.addAction(UIAlertAction(title: "Source & license", style: .default) { [weak self] _ in
+        let menu = ThemedDialog(title: "Video options", message: nil, preferredStyle: .actionSheet)
+        menu.addChoice("Source & license", style: .default) { [weak self] in
             self?.openSource(item.sourceUrl)
-        })
-        menu.addAction(UIAlertAction(title: "Report video", style: .destructive) { [weak self] _ in
-            self?.report(item)
-        })
-        if let publisher = item.publisherId, publisher != api.memberID {
-            menu.addAction(UIAlertAction(title: "Block author", style: .destructive) { [weak self] _ in
-                guard let self else { return }
-                self.confirmMemberBlock(publisher, api: self.api)
-            })
         }
-        menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(menu, animated: true)
-    }
-
-    private func report(_ item: CatalogItem) {
-        let menu = UIAlertController(title: "Report video", message: nil, preferredStyle: .actionSheet)
-        for reason in ["Harassment", "Spam", "Inappropriate content", "Other"] {
-            menu.addAction(UIAlertAction(title: reason, style: .default) { [weak self] _ in
+        if item.publisherId == nil || item.publisherId != api.memberID {
+            menu.addChoice("Report video", style: .destructive) { [weak self] in
                 guard let self else { return }
-                Task {
-                    do {
-                        try await self.api.report(["catalog_id": item.id], reason: reason)
-                    } catch { self.showAlert(error.localizedDescription) }
-                }
-            })
+                self.chooseReportReason(["catalog_id": item.id], api: self.api, subject: "video", detail: item.title)
+            }
         }
-        menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        if let peer = item.publisherId {
+            for (title, style, action) in authorOptions(peer, name: item.publisher?.displayName, source: "catalog:" + item.id, api: api) {
+                menu.addChoice(title, style: style) { action() }
+            }
+        }
+        menu.addChoice("Cancel", style: .cancel)
         present(menu, animated: true)
     }
 
     private func showAlert(_ message: String) {
         guard visible, presentedViewController == nil else { return }
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = ThemedDialog(title: nil, message: message, preferredStyle: .alert)
+        alert.addChoice("OK", style: .default)
         present(alert, animated: true)
     }
 

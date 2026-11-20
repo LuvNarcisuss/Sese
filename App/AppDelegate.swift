@@ -80,7 +80,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate, UITabBarControlle
         if tabBarController.selectedViewController !== viewController,
            let navigation = viewController as? UINavigationController,
            let shorts = navigation.viewControllers.first as? ShortsFeedPage {
-            shorts.returnFromCreatorProfileIfNeeded()
+            shorts.returnFromProfileIfNeeded()
         }
         return true
     }

@@ -96,8 +96,15 @@ enum Theme {
         return button
     }
 
-    static func moreIcon(label: String, action: @escaping () -> Void) -> UIButton {
-        icon("settings", label: label, action: action)
+    static func moreIcon(label: String, size: CGFloat? = nil, action: @escaping () -> Void) -> UIButton {
+        bundledIcon("more", label: label, size: size, action: action)
+    }
+
+    static func bundledIcon(_ name: String, label: String, size: CGFloat? = nil, action: @escaping () -> Void) -> UIButton {
+        let button = iconTarget(label, action: action)
+        let image = Artwork.iconImage(name)
+        button.setImage(size.flatMap { image?.scaled(to: $0) } ?? image, for: .normal)
+        return button
     }
 
     private static func iconTarget(_ label: String, action: @escaping () -> Void) -> UIButton {
@@ -194,9 +201,17 @@ enum Artwork {
     static let expoPortrait = storage?.appendingPathComponent("944f77db-dbc1-4293-976a-e6bc0dc71f39/expo-duo.jpg")
     static let fanPortrait = storage?.appendingPathComponent("sese-media-v1/fan-duo.jpg")
 
+    static func shortsImage(_ clip: String) -> URL? {
+        storage?.appendingPathComponent("shorts/v1/\(clip).jpg")
+    }
+
+    private static let bundledArtwork: [String: Data] = {
+        guard let data = try? Data(contentsOf: Resources.url("IconArtwork.plist")) else { return [:] }
+        return (try? PropertyListDecoder().decode([String: Data].self, from: data)) ?? [:]
+    }()
+    static let dialogSkyline = bundledArtwork["dialog-skyline"].flatMap { UIImage(data: $0) }
+
     private static let iconImages: [String: UIImage] = {
-        guard let data = try? Data(contentsOf: Resources.url("IconArtwork.plist")),
-              let images = try? PropertyListDecoder().decode([String: Data].self, from: data) else { return [:] }
         // Match the visible shapes, not the differently padded ImageGen canvases.
         let bounds: [String: CGRect] = [
             "like": CGRect(x: 32, y: 14, width: 79, height: 69),
@@ -220,7 +235,11 @@ enum Artwork {
             "diamond": CGRect(x: 46, y: 65, width: 161, height: 132)
         ]
         let presentationSize = CGSize(width: Theme.iconSize, height: Theme.iconSize)
-        return images.reduce(into: [:]) { result, entry in
+        return bundledArtwork.reduce(into: [:]) { result, entry in
+            if entry.key == "more" || entry.key == "play" {
+                result[entry.key] = UIImage(data: entry.value)?.scaled(to: Theme.iconSize)
+                return
+            }
             guard let source = UIImage(data: entry.value), let contentBounds = bounds[entry.key],
                   let shape = source.cgImage?.cropping(to: contentBounds) else { return }
             let format = UIGraphicsImageRendererFormat()
@@ -474,8 +493,8 @@ class CityPage: UIViewController {
 
     func alert(_ text: String) {
         guard view.window != nil, presentedViewController == nil else { return }
-        let alert = UIAlertController(title: nil, message: text, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = ThemedDialog(title: nil, message: text, preferredStyle: .alert)
+        alert.addChoice("OK", style: .default)
         present(alert, animated: true)
     }
 
@@ -485,25 +504,14 @@ class CityPage: UIViewController {
     }
 
     func menu(_ title: String, choices: [(String, UIAlertAction.Style, () -> Void)]) {
-        let menu = UIAlertController(title: title, message: nil, preferredStyle: .actionSheet)
-        choices.forEach { text, style, action in menu.addAction(UIAlertAction(title: text, style: style) { _ in action() }) }
-        menu.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        let menu = ThemedDialog(title: title, message: nil, preferredStyle: .actionSheet)
+        choices.forEach { text, style, action in menu.addChoice(text, style: style) { action() } }
+        menu.addChoice("Cancel", style: .cancel)
         present(menu, animated: true)
     }
 
-    func report(_ target: [String: String], video: Bool = true) {
-        let reasons = ["Harassment", "Spam", "Inappropriate content", "Other"]
-        menu("Report", choices: reasons.map { reason in
-            (reason, .default, { [weak self] in
-                guard let self else { return }
-                Task {
-                    do {
-                        try await self.api.report(target, reason: reason, video: video)
-                        UIAccessibility.post(notification: .announcement, argument: "Report submitted.")
-                    } catch { self.alert(error.localizedDescription) }
-                }
-            })
-        })
+    func report(_ target: [String: String], subject: String, detail: String, video: Bool = true) {
+        chooseReportReason(target, api: api, subject: subject, detail: detail, video: video)
     }
 
     func search(_ field: UITextField, into parent: UIStackView, change: @escaping (String) -> Void) {

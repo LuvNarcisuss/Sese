@@ -27,7 +27,7 @@ final class WalletPurchaseTests: XCTestCase {
         let firstPack = app.buttons["wallet.package.400"]
         await expect(firstPack, matches: "enabled == true")
         firstPack.tap()
-        let cancel = app.alerts.buttons["Cancel"]
+        let cancel = app.otherElements["dialog.Buy 400 diamonds?"].buttons["Cancel"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 5))
         cancel.tap()
         XCTAssertEqual(balance.label, formatted(expectedBalance))
@@ -40,7 +40,7 @@ final class WalletPurchaseTests: XCTestCase {
             for _ in 0..<4 where !pack.isHittable { app.scrollViews.firstMatch.swipeUp() }
             XCTAssertTrue(pack.isHittable)
             pack.tap()
-            let confirmation = app.alerts.firstMatch
+            let confirmation = app.otherElements["dialog.Buy \(diamonds.formatted()) diamonds?"]
             XCTAssertTrue(confirmation.buttons["Continue"].waitForExistence(timeout: 5))
             XCTAssertTrue(confirmation.staticTexts[price].exists)
             confirmation.buttons["Continue"].tap()

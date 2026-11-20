@@ -116,20 +116,20 @@ final class DistrictBuilderPage: CityPage {
             let ledger = try wallet.ledger(for: memberID)
             let price = BuiltDistrict.price.formatted()
             guard ledger.balance >= BuiltDistrict.price else {
-                let alert = UIAlertController(title: "Not enough diamonds",
+                let alert = ThemedDialog(title: "Not enough diamonds",
                                               message: "Building a district costs \(price) diamonds.", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Open wallet", style: .default) { [weak self] _ in self?.showWallet() })
-                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                alert.addChoice("Open wallet", style: .default) { [weak self] in self?.showWallet() }
+                alert.addChoice("Cancel", style: .cancel)
                 present(alert, animated: true)
                 return
             }
             let selectedStyle = style
             let selectedPlan = plan
             let count = selectedStyle.places(for: selectedPlan).count
-            let alert = UIAlertController(title: "Build \(name)?",
+            let alert = ThemedDialog(title: "Build \(name)?",
                                           message: "Spend \(price) diamonds to build this district with \(count) places to explore.", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-            alert.addAction(UIAlertAction(title: "Build district", style: .default) { [weak self] _ in
+            alert.addChoice("Cancel", style: .cancel)
+            alert.addChoice("Build district", style: .default) { [weak self] in
                 guard let self else { return }
                 do {
                     let district = try self.wallet.buildDistrict(id: self.buildID, name: name, style: selectedStyle,
@@ -139,7 +139,7 @@ final class DistrictBuilderPage: CityPage {
                     self.showStatus(error.localizedDescription)
                     self.refreshBalance()
                 }
-            })
+            }
             present(alert, animated: true)
         } catch {
             showStatus(error.localizedDescription)

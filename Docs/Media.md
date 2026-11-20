@@ -11,6 +11,15 @@ The default Shorts feed uses 9:16 H.264 MP4s and matching JPEG covers from the p
 | A costume meet-up hug | [Diti hugs Natalie](https://commons.wikimedia.org/wiki/File:Diti_hugs_Natalie.ogv), [Dimitri Torterat](https://diti.me/). Trimmed, reframed and muted. [CC BY 2.0 France](https://creativecommons.org/licenses/by/2.0/fr/) |
 | Ask before you snap | [Fursuit Etiquette](https://commons.wikimedia.org/wiki/File:TITANIA_-_Fursuit_Etiquette_%282024%29.webm), TITANIA. Source edit by Jayvee Enaguas. Reframed, muted and captioned. [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 
+## Additional hosted Shorts
+
+These four silent portrait edits each use a separate original recording and an existing community publisher. The Shorts media manifest records each source, edit and output hash.
+
+- **A pose in the plaza**. AccessAccess · CC BY 3.0. [Original footage](https://commons.wikimedia.org/wiki/File:Anime_Los_Angeles_2023_-_Danganronpa_Cosplay_Gathering_%28Friday%29.webm). [License](https://creativecommons.org/licenses/by/3.0).
+- **Inside a Comiket photo call**. Benlisquare · CC BY-SA 4.0. [Original footage](https://commons.wikimedia.org/wiki/File:Cosplay_photography_at_Comiket_105.webm). [License](https://creativecommons.org/licenses/by-sa/4.0).
+- **A walk through Gamescom**. REZATA · CC BY 3.0. [Original footage](https://commons.wikimedia.org/wiki/File:Gamescom_2023_-_Cosplay_Music_Video_-_Short_Cut_Version_-_4K.webm). [License](https://creativecommons.org/licenses/by/3.0).
+- **Pyrkon parade colors**. Rose Abrams · CC BY 4.0. [Original footage](https://commons.wikimedia.org/wiki/File:Pyrkon_2026_furry_parade.webm). [License](https://creativecommons.org/licenses/by/4.0).
+
 ## Earlier publisher sources
 
 These records preserve their catalog IDs and original sources for existing interactions and relevant catalog details. Disney film and trailer distribution permissions are not on record.
@@ -33,7 +42,9 @@ These records preserve their catalog IDs and original sources for existing inter
 
 Photographed people appear as editorial subjects. They are not presented as accounts, endorsers or message recipients.
 
-Member avatars use the selected portrait or a stable choice from the credited cosplay photos. Shorts editorial creator pages use portraits from the same set as themed editorial imagery, with the portrait source and the clip creator credited separately.
+Member avatars use the selected portrait or a stable choice from the credited cosplay photos. Each hosted Short links to its community publisher using the account ID and profile portrait. The video credit identifies the source author and license independently of the publisher.
+
+The eight editorial desks use eight individually sourced costume portraits. Each delivered JPEG is a 320-pixel square crop. Each photograph is independent of the Shorts, their covers and the member avatar gallery. The [editorial portrait manifest](../App/CommunityContent/EditorialPortraits.json) records the photographers, original files, licenses, crop rectangles and hashes. Each crop retains its source license. The Media credits page links to each original file. Older app builds keep their existing portraits.
 
 ## Additional cosplay sources
 
@@ -63,7 +74,7 @@ The interactive city map uses an ImageGen 4:3 aerial illustration of City Center
 
 ## Shared icon artwork
 
-`App/CommunityContent/IconArtwork.plist` contains text-encoded copies of the 19 individual ImageGen assets used for navigation, toolbars, reactions, wallet diamonds, and consent. The existing filled originals were verified against `Docs/Artwork.json`. The outline artwork retains the original ImageGen source and planned Storage paths in the same manifest. Using these copies for controls keeps all icon variants available on first render, including before the two outline originals are published. The application still uses the existing 48-point icon targets.
+`App/CommunityContent/IconArtwork.plist` contains text-encoded copies of the original 19 individual ImageGen assets used for navigation, toolbars, reactions, wallet diamonds, and consent. It also contains the horizontal More icon and illustrated skyline used by app-owned dialogs, available offline. The More artwork uses three mint enamel dots with gold rims; the skyline shows moonlit violet rooftops with amber windows. Both generated originals and bundled derivatives are identified by SHA-256 in the artwork manifest. The existing filled originals were verified against `Docs/Artwork.json`. The outline artwork retains the original ImageGen source and planned Storage paths in the same manifest. Using these copies for controls keeps all icon variants available on first render, including before the two outline originals are published. The application still uses the existing 48-point icon targets.
 
 
 The reaction loader measures these bundled variants by their visible silhouette rather than the original padded canvas. The avatar and all icon variants share a 40-by-40-point visible presentation, including both Like and Save states. This supersedes the earlier narrower bookmark and shorter heart presentation. Source-specific content bounds exclude transparent margins and peripheral glow. UIKit prepares these display copies once in memory from the original, individually generated art; no source artwork is replaced. If the bundled images change, update and visually verify all icon content bounds together.
@@ -92,3 +103,11 @@ On November 12, 2026, the current workspace build and the UI test runner build s
 On November 13, 2026, the owner provided `/Users/apple/Downloads/241/logo.png` and requested it as the Sese app logo. The 1024-by-1024 image is used uncropped and unscaled. Its alpha channel was fully opaque; the build input removes that redundant channel without changing any RGB pixels. `Docs/Artwork.json` records the source and prepared hashes and preserves the former launcher record under `supersedes`. The supplied Downloads file is unchanged.
 
 Verification: decoded the tracked source through the actual preparation script into a fresh temporary output, verified its digest, dimensions, RGB pixel equality and lack of alpha, then verified the repeat preparation path. The AppIcon descriptor and both project configurations refer to the prepared asset. This replacement did not include an app build, simulator installation, or App Store publication.
+
+## Shorts playback control
+
+Pausing a Short reveals a centered, right-pointing mint enamel triangle. The transparent ImageGen artwork is bundled in `IconArtwork.plist` and uses the shared 40-point icon size and 48-point touch target. The button has the VoiceOver label “Play video”. Resuming playback hides the icon.
+
+## Discussion profile Shorts
+
+Hem & Thread publishes *Emerald at Gamescom*, Frame Finder publishes *Blue ribbons at SMASH*, and Cue Card publishes *A star at Wonder Festival*. Each uses a different licensed recording. The source creators, licenses, edit notes and hosted file digests are recorded in [the Shorts manifest](ShortsMedia.json). Each profile receives the sum of its video counts, including labeled editorial estimates and subsequent member reactions.

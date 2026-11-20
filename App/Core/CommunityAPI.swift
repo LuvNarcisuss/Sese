@@ -46,6 +46,7 @@ struct CatalogItem: Decodable, Identifiable, Equatable {
     let imageUrl: URL?
     let mediaUrl: URL?
     let publisherId: UUID?
+    let publisher: Member?
     var isVideo: Bool { kind == "Film Clip" || kind == "Cosplay Video" }
 }
 
@@ -86,12 +87,19 @@ struct CosplayPost: Decodable, Identifiable {
     }
 }
 
-struct Member: Decodable, Identifiable {
+struct Member: Decodable, Identifiable, Equatable {
     let id: UUID
     let displayName: String
     let bio: String
-    let avatar: String?
+    private let memberAvatar: String?
+    private let editorialPortrait: String?
+    var avatar: String? { editorialPortrait ?? memberAvatar }
     let discoverable: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case id, displayName, bio, discoverable, editorialPortrait
+        case memberAvatar = "avatar"
+    }
 }
 
 struct MemberCounts: Decodable {
@@ -187,6 +195,7 @@ final class CommunityAPI {
     private(set) var safetyRevision = 0
     // RLS owns persistent visibility. These session deltas also filter responses started before a write.
     private var hiddenVideos = Set<String>()
+    private var hiddenComments = Set<String>()
     private var blockedPeers = Set<UUID>()
     private var safetyWrites = Set<String>()
     let configuration: BackendConfiguration
@@ -391,7 +400,9 @@ final class CommunityAPI {
     }
 
     func catalog() async throws -> [CatalogItem] {
-        let items: [CatalogItem] = try await read("catalog", query: ["order": "position.asc", "limit": "100"])
+        let items: [CatalogItem] = try await read("catalog", query: [
+            "select": "*,publisher:profiles!catalog_publisher_id_fkey(*)", "order": "position.asc", "limit": "100"
+        ])
         return items.filter { !isHidden($0) }
     }
 
@@ -424,9 +435,13 @@ final class CommunityAPI {
     }
 
     func member(_ id: UUID) async throws -> Member {
-        let members: [Member] = try await read("profiles", query: ["id": "eq.\(id.uuidString)"])
-        guard let member = members.first else { throw CommunityError.unavailable }
+        guard let member = try await visibleMember(id) else { throw CommunityError.unavailable }
         return member
+    }
+
+    func visibleMember(_ id: UUID) async throws -> Member? {
+        let members: [Member] = try await read("profiles", query: ["id": "eq.\(id.uuidString)"])
+        return members.first
     }
 
     func members() async throws -> [Member] {
@@ -625,11 +640,15 @@ final class CommunityAPI {
     private func resetSafety() {
         useInitialEditorialCounts = true
         hiddenVideos.removeAll()
+        hiddenComments.removeAll()
         blockedPeers.removeAll()
         safetyRevision += 1
     }
 
     func isBlocked(_ peer: UUID) -> Bool { blockedPeers.contains(peer) }
+    func isHidden(_ comment: Comment) -> Bool {
+        hiddenComments.contains("comment:" + comment.id.uuidString.lowercased()) || comment.authorId.map(isBlocked) == true
+    }
     func isHidden(_ item: CatalogItem) -> Bool {
         item.publisherId.map(isBlocked) == true || hiddenVideos.contains("catalog:\(item.id)")
     }
@@ -665,12 +684,15 @@ final class CommunityAPI {
     }
 
     func safetyHistory(_ kind: String, includeCovers: Bool = false) async throws -> [SafetyEntry] {
-        guard let account = memberID, ["report", "block"].contains(kind) else { throw CommunityError.unavailable }
+        guard let account = memberID, ["report", "block", "comment"].contains(kind) else { throw CommunityError.unavailable }
         var entries: [SafetyEntry] = []
         while true {
             try Task.checkCancellation()
             let page: [SafetyEntry]
-            if includeCovers && kind == "report" {
+            if kind == "comment" {
+                page = try await read("rpc/reported_comment_history", method: "POST",
+                                      body: ["page_offset": entries.count], account: account)
+            } else if includeCovers && kind == "report" {
                 page = try await read("rpc/reported_video_history", method: "POST",
                                       body: ["page_offset": entries.count], account: account)
             } else {
@@ -689,11 +711,14 @@ final class CommunityAPI {
         do {
             async let reports = self.safetyHistory("report")
             async let blocks = self.safetyHistory("block")
-            let (reportRows, blockRows) = try await (reports, blocks)
+            async let comments = self.safetyHistory("comment")
+            let (reportRows, blockRows, commentRows) = try await (reports, blocks, comments)
             guard account == memberID, revision == safetyRevision else { return }
             let videos = Set(reportRows.map(\.targetKey))
             let peers = Set(blockRows.compactMap { UUID(uuidString: $0.targetKey) })
-            guard videos != hiddenVideos || peers != blockedPeers else { return }
+            let hidden = Set(commentRows.map(\.targetKey))
+            guard videos != hiddenVideos || peers != blockedPeers || hidden != hiddenComments else { return }
+            hiddenComments = hidden
             hiddenVideos = videos
             blockedPeers = peers
             publishSafetyChange()
@@ -702,12 +727,12 @@ final class CommunityAPI {
         }
     }
 
-    func blockMember(_ peer: UUID, comment: UUID? = nil) async throws {
+    func blockMember(_ peer: UUID, source: String? = nil) async throws {
         guard let account = memberID, peer != account else { throw CommunityError.unavailable }
         let key = try safetyWriteKey("block:\(peer)", account: account)
         defer { safetyWrites.remove(key) }
-        let body: [String: Any] = ["peer": peer.uuidString, "comment": comment.map { $0.uuidString as Any } ?? NSNull()]
-        try await write("rpc/block_member", method: "POST", body: body, account: account)
+        let body: [String: Any] = ["peer": peer.uuidString, "source": source.map { $0 as Any } ?? NSNull()]
+        try await write("rpc/block_from_source", method: "POST", body: body, account: account)
         guard account == memberID else { throw CommunityError.unavailable }
         blockedPeers.insert(peer)
         publishSafetyChange()
@@ -730,9 +755,17 @@ final class CommunityAPI {
         }
     }
 
-    func report(_ target: [String: String], reason: String, video: Bool = true) async throws {
+    func report(_ target: [String: String], reason: String, video: Bool, requestID: UUID) async throws {
         guard let account = memberID else { throw CommunityError.unavailable }
-        if video, let (field, rawID) = target.first, target.count == 1,
+        if let id = target["comment_id"] {
+            let targetKey = "comment:" + id.lowercased()
+            let key = try safetyWriteKey(targetKey, account: account)
+            defer { safetyWrites.remove(key) }
+            try await write("rpc/submit_comment_report", method: "POST", body: ["item": id, "report_reason": reason], account: account)
+            guard account == memberID else { throw CommunityError.unavailable }
+            hiddenComments.insert(targetKey)
+            publishSafetyChange()
+        } else if video, let (field, rawID) = target.first, target.count == 1,
            let kind = ["work_id": "work", "catalog_id": "catalog", "cosplay_post_id": "cosplay"][field] {
             let id = kind == "catalog" ? rawID : rawID.lowercased()
             let targetKey = "\(kind):\(id)"
@@ -744,7 +777,13 @@ final class CommunityAPI {
             hiddenVideos.insert(targetKey)
             publishSafetyChange()
         } else {
-            try await write("reports", method: "POST", body: target.merging(["reason": reason]) { _, new in new }, account: account)
+            let kinds = ["reported_id": "member", "message_id": "message", "catalog_id": "catalog", "cosplay_post_id": "cosplay"]
+            guard let (field, item) = target.first(where: { kinds[$0.key] != nil }), let kind = kinds[field] else {
+                throw CommunityError.unavailable
+            }
+            let body: [String: Any] = ["target_type": kind, "item": item, "report_reason": reason, "request_id": requestID.uuidString,
+                                       "source": target["source_key"].map { $0 as Any } ?? NSNull()]
+            try await write("rpc/submit_item_report", method: "POST", body: body, account: account)
         }
     }
 
@@ -752,6 +791,14 @@ final class CommunityAPI {
         guard let account = memberID else { throw CommunityError.unavailable }
         let key = try safetyWriteKey(entry.targetKey, account: account)
         defer { safetyWrites.remove(key) }
+        if entry.targetKey.hasPrefix("comment:") {
+            let id = String(entry.targetKey.dropFirst("comment:".count))
+            try await write("rpc/withdraw_comment_report", method: "POST", body: ["item": id], account: account)
+            guard account == memberID else { throw CommunityError.unavailable }
+            hiddenComments.remove(entry.targetKey)
+            publishSafetyChange()
+            return
+        }
         try await write("rpc/withdraw_video_report", method: "POST", body: ["entry_key": entry.targetKey], account: account)
         guard account == memberID else { throw CommunityError.unavailable }
         hiddenVideos.remove(entry.targetKey)

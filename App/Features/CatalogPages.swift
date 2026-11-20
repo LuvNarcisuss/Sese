@@ -40,23 +40,102 @@ protocol SafetyObserving: AnyObject {
 }
 
 extension UIViewController {
-    func confirmMemberBlock(_ peer: UUID, api: CommunityAPI, comment: UUID? = nil) {
-        let prompt = UIAlertController(title: "Block this member?", message: "Their posts and comments will be hidden.",
-                                       preferredStyle: .alert)
-        prompt.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        prompt.addAction(UIAlertAction(title: "Block", style: .destructive) { [weak self] _ in
+    private func safetyPresenter() -> UIViewController {
+        if let presented = presentedViewController, !presented.isBeingDismissed { return presented.safetyPresenter() }
+        if let tab = self as? UITabBarController, let selected = tab.selectedViewController { return selected.safetyPresenter() }
+        if let navigation = self as? UINavigationController, let top = navigation.topViewController { return top.safetyPresenter() }
+        return self
+    }
+
+    private func showSafetyResult(_ title: String, api: CommunityAPI, actor: UUID, message: String? = nil, retry: (() -> Void)? = nil) {
+        Task { @MainActor [weak self] in
+            // A committed write may close its detail page or finish while another dialog is visible.
+            while let self, api.memberID == actor {
+                let host = self.safetyPresenter()
+                guard host.viewIfLoaded?.window != nil || self.viewIfLoaded?.window != nil else { return }
+                if host.viewIfLoaded?.window != nil, host.transitionCoordinator == nil,
+                   host.presentedViewController == nil, !(host is ThemedDialog), !(host is UIAlertController) {
+                    let result = ThemedDialog(title: title, message: message, preferredStyle: .alert)
+                    if let retry {
+                        result.addChoice("Retry", style: .default) { retry() }
+                    }
+                    result.addChoice(retry == nil ? "OK" : "Cancel", style: .cancel)
+                    host.present(result, animated: true)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 150_000_000)
+            }
+        }
+    }
+
+    func chooseReportReason(_ target: [String: String], api: CommunityAPI, subject: String, detail: String, video: Bool = true) {
+        guard let root = view.window?.rootViewController, let actor = api.memberID else { return }
+        let requestID = UUID()
+        func submit(_ reason: String) {
+            guard api.memberID == actor else { return }
             Task { @MainActor in
-                do { try await api.blockMember(peer, comment: comment) }
-                catch {
-                    guard let self, self.viewIfLoaded?.window != nil else { return }
-                    let alert = UIAlertController(title: "Could not block member", message: error.localizedDescription,
-                                                  preferredStyle: .alert)
-                    alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    self.present(alert, animated: true)
+                do {
+                    try await api.report(target, reason: reason, video: video, requestID: requestID)
+                    guard api.memberID == actor else { return }
+                    root.showSafetyResult("\(subject.capitalized) reported.", api: api, actor: actor, message: detail)
+                } catch {
+                    guard api.memberID == actor else { return }
+                    root.showSafetyResult("Could not report \(subject)", api: api, actor: actor, message: detail + "\n\n" + error.localizedDescription) { submit(reason) }
                 }
             }
-        })
+        }
+        let menu = ThemedDialog(title: "Report \(subject)", message: detail, preferredStyle: .actionSheet)
+        for reason in ["Harassment", "Spam", "Inappropriate content", "Other"] {
+            menu.addChoice(reason, style: .default) { submit(reason) }
+        }
+        menu.addChoice("Cancel", style: .cancel)
+        present(menu, animated: true)
+    }
+
+    func confirmMemberBlock(_ peer: UUID, name: String?, api: CommunityAPI, source: String? = nil) {
+        guard let root = view.window?.rootViewController, let actor = api.memberID else { return }
+        let navigation = navigationController
+        let member = name ?? "this member"
+        let blockedMessage = name.map { "\($0)’s posts and comments are now hidden." } ?? "This member’s posts and comments are now hidden."
+        let prompt = ThemedDialog(title: "Block \(member)?", message: "Their posts and comments will be hidden.",
+                                       preferredStyle: .alert)
+        prompt.addChoice("Cancel", style: .cancel)
+        prompt.addChoice("Block", style: .destructive) {
+            Task { @MainActor in
+                guard api.memberID == actor else { return }
+                do {
+                    try await api.blockMember(peer, source: source)
+                    guard api.memberID == actor else { return }
+                    if let navigation, navigation.topViewController === self {
+                        if navigation.viewControllers.count > 1 { navigation.popViewController(animated: false) }
+                        else if navigation.presentingViewController != nil {
+                            navigation.dismiss(animated: true) { root.showSafetyResult("User blocked.", api: api, actor: actor, message: blockedMessage) }
+                            return
+                        }
+                    }
+                    root.showSafetyResult("User blocked.", api: api, actor: actor, message: blockedMessage)
+                } catch {
+                    guard api.memberID == actor else { return }
+                    root.showSafetyResult("Could not block \(member)", api: api, actor: actor, message: error.localizedDescription)
+                }
+            }
+        }
         present(prompt, animated: true)
+    }
+
+    func reportMember(_ peer: UUID, name: String?, source: String?, api: CommunityAPI) {
+        var target = ["reported_id": peer.uuidString]
+        target["source_key"] = source
+        let detail = (name ?? "Private member") + "\n\nTo hide this user's posts and comments, choose Block."
+        chooseReportReason(target, api: api, subject: "user", detail: detail)
+    }
+
+    func authorOptions(_ peer: UUID, name: String?, source: String?, api: CommunityAPI) -> [(String, UIAlertAction.Style, () -> Void)] {
+        guard peer != api.memberID else { return [] }
+        return [
+            ("Report author", .destructive, { [weak self] in self?.reportMember(peer, name: name, source: source, api: api) }),
+            ("Block author", .destructive, { [weak self] in self?.confirmMemberBlock(peer, name: name, api: api, source: source) })
+        ]
     }
 }
 
@@ -371,10 +450,18 @@ final class CatalogDetail: CityPage, SafetyObserving {
         reactionBar.distribution = .fillEqually
         body.addArrangedSubview(reactionBar)
         renderReactions()
-        let tools = Theme.stack([
-            Theme.button("Share", icon: "share") { [weak self] in self?.share(selected.sourceUrl) },
-            Theme.button("Report") { [weak self] in self?.report(["catalog_id": selected.id], video: selected.isVideo) }
-        ], axis: .horizontal)
+        let tools = Theme.stack([Theme.button("Share", icon: "share") { [weak self] in self?.share(selected.sourceUrl) }], axis: .horizontal)
+        if selected.publisherId == nil || selected.publisherId != api.memberID {
+            tools.addArrangedSubview(Theme.moreIcon(label: "Content options") { [weak self] in
+                guard let self else { return }
+                let authors = selected.publisherId.map { self.authorOptions($0, name: selected.publisher?.displayName, source: "catalog:" + selected.id, api: self.api) } ?? []
+                self.menu("Content options", choices: [
+                    (selected.isVideo ? "Report video" : "Report content", .destructive, { [weak self] in
+                        self?.report(["catalog_id": selected.id], subject: selected.isVideo ? "video" : "content", detail: selected.title, video: selected.isVideo)
+                    })
+                ] + authors)
+            })
+        }
         tools.distribution = .fillEqually
         body.addArrangedSubview(tools)
         if items.count > 1 {
@@ -481,6 +568,7 @@ final class CatalogDetail: CityPage, SafetyObserving {
 }
 
 final class CommentsPage: CityPage, SafetyObserving {
+    var openAuthorProfile: ((ProfilePage) -> Void)?
     private let item: CatalogItem
     private let list = Theme.stack()
     private let input = Theme.field("Write a comment")
@@ -501,7 +589,7 @@ final class CommentsPage: CityPage, SafetyObserving {
 
     func safetyDidChange() {
         if api.isHidden(item) { loadTask?.cancel(); closeHiddenContent(); return }
-        displayedRows.removeAll { $0.authorId.map(api.isBlocked) == true }
+        displayedRows.removeAll { api.isHidden($0) }
         renderRows()
         reload()
     }
@@ -552,37 +640,52 @@ final class CommentsPage: CityPage, SafetyObserving {
     private var displayedRows: [Comment] = []
 
     private func renderRows() {
-        let rows = displayedRows.filter { $0.authorId.map(api.isBlocked) != true }
+        let rows = displayedRows.filter { !api.isHidden($0) }
         total.text = "\(rows.count) comments"
         showStatus(nil)
         list.clear()
         if rows.isEmpty { list.addArrangedSubview(Theme.empty("Start the conversation", "Share what stood out to you.")) }
         for row in rows {
             let name: UIView
-            if let author = row.author {
+            if let id = row.authorId {
+                let nickname = row.author?.displayName ?? "Private member"
                 let openProfile: () -> Void = { [weak self] in
                     guard let self else { return }
-                    self.push(ProfilePage(memberID: author.id, api: self.api))
+                    let profile = ProfilePage(memberID: id, api: self.api, commentID: row.id)
+                    if let openAuthorProfile = self.openAuthorProfile { openAuthorProfile(profile) }
+                    else { self.push(profile) }
                 }
-                let avatar = MemberAvatar.button(author.avatar, size: Theme.iconSize, label: "Open \(author.displayName)’s profile",
-                                                 memberID: author.id, action: openProfile)
-                let identity = Theme.stack([avatar, Theme.textAction(author.displayName, action: openProfile)], axis: .horizontal)
+                let avatar = MemberAvatar.button(row.author?.avatar, size: Theme.iconSize, label: "Open \(nickname)’s profile",
+                                                 memberID: id, action: openProfile)
+                let byline = Theme.textAction(nickname, action: openProfile)
+                avatar.accessibilityIdentifier = "comment.author.avatar"
+                byline.accessibilityIdentifier = "comment.author.name"
+                byline.configuration?.titleLineBreakMode = .byWordWrapping
+                let identity = Theme.stack([avatar, byline], spacing: 8, axis: .horizontal)
                 identity.alignment = .center
                 name = identity
             } else {
                 name = Theme.label(row.editorialKey == nil ? "City Resident" : "Sese Editorial", display: true)
             }
             let own = row.authorId != nil && row.authorId == api.memberID
-            let button = Theme.button(own ? "Delete" : "Report") { [weak self] in
-                if own { self?.remove(row.id) } else { self?.report(["comment_id": row.id.uuidString]) }
-            }
             let commentBody = Theme.label(row.body)
             commentBody.accessibilityIdentifier = "comment.body"
-            let card = Theme.card([name, commentBody, button])
-            if !own, let peer = row.authorId {
-                card.addArrangedSubview(Theme.textAction("Block author") { [weak self] in
+            let header = Theme.stack([name], spacing: 6, axis: .horizontal)
+            header.alignment = .top
+            let card = Theme.card([header, commentBody])
+            if own {
+                card.addArrangedSubview(Theme.button("Delete") { [weak self] in self?.remove(row.id) })
+            } else {
+                header.addArrangedSubview(Theme.moreIcon(label: "Comment options", size: commentBody.font.pointSize) { [weak self] in
                     guard let self else { return }
-                    self.confirmMemberBlock(peer, api: self.api, comment: row.id)
+                    let source = "comment:" + row.id.uuidString.lowercased()
+                    let authors = row.authorId.map { self.authorOptions($0, name: row.author?.displayName, source: source, api: self.api) } ?? []
+                    self.menu("Comment options", choices: [
+                        ("Report comment", .destructive, { [weak self] in
+                            let excerpt = String(row.body.prefix(100)) + (row.body.count > 100 ? "…" : "")
+                            self?.report(["comment_id": row.id.uuidString], subject: "comment", detail: "“\(excerpt)”")
+                        })
+                    ] + authors)
                 })
             }
             list.addArrangedSubview(card)

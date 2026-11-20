@@ -1,0 +1,146 @@
+[
+  {
+    "id": "editor-wardrobe-portrait-v2",
+    "desk": "wardrobe",
+    "displayName": "Hem & Thread",
+    "credit": "Douglas Muth · CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Campion_fursuit_(53388855663).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Campion_fursuit_%2853388855663%29.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Campion_fursuit_%2853388855663%29.jpg/960px-Campion_fursuit_%2853388855663%29.jpg",
+    "inputSha256": "4762dbfaa07d7309ef68d96dd63692eaf23f16259b677da1b7f72483769dcb6d",
+    "crop": [
+      202,
+      86,
+      595,
+      595
+    ],
+    "sha256": "465e7329583824e9a1faecae3ba64ce9b8a31f3c8d160009e4cf5ac6f285a932"
+  },
+  {
+    "id": "editor-camera-portrait-v2",
+    "desk": "camera",
+    "displayName": "Frame Finder",
+    "credit": "Shotcat · CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Eric_Fursuit.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Eric_Fursuit.jpg",
+    "inputUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Eric_Fursuit.jpg",
+    "inputSha256": "1d659027ca261885e0cabc6615f7bff1e078966eef5244fe6ebe9bb75f592655",
+    "crop": [
+      138,
+      52,
+      588,
+      588
+    ],
+    "sha256": "f42a21efd8f967718dcfcc23613bc41a47cf11179fed04e0c82b6655d1568918"
+  },
+  {
+    "id": "editor-meetups-portrait-v2",
+    "desk": "meetups",
+    "displayName": "Parade Post",
+    "credit": "patterpics · CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Eurofluence_16_belo4ka_lion_fursuit.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/4/45/Eurofluence_16_belo4ka_lion_fursuit.jpg",
+    "inputUrl": "https://upload.wikimedia.org/wikipedia/commons/4/45/Eurofluence_16_belo4ka_lion_fursuit.jpg",
+    "inputSha256": "54ccecf23c30e588f4ec754f1a3a73f91f98771bc12382df72cd939df22615fc",
+    "crop": [
+      182,
+      132,
+      259,
+      259
+    ],
+    "sha256": "f9791e056cc06d6e77331098a234606bb66198494174d14298ca76d5b4919cf8"
+  },
+  {
+    "id": "editor-etiquette-portrait-v2",
+    "desk": "etiquette",
+    "displayName": "Con Compass",
+    "credit": "Firiondragon · CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Firiondragon_Provil.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/6/65/Firiondragon_Provil.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Firiondragon_Provil.jpg/960px-Firiondragon_Provil.jpg",
+    "inputSha256": "b14dac207a222472477cde97479e3174a32dc5234ace3fc07d333061f1ce4f8c",
+    "crop": [
+      125,
+      154,
+      768,
+      768
+    ],
+    "sha256": "cc851ab4dd99605005cbe1d5c82b802f3f372922158783e25615b59917d3b999"
+  },
+  {
+    "id": "editor-swatches-portrait-v2",
+    "desk": "swatches",
+    "displayName": "Swatch Book",
+    "credit": "Douglas Muth · CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Foxfursuit.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/2/29/Foxfursuit.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/29/Foxfursuit.jpg/960px-Foxfursuit.jpg",
+    "inputSha256": "add03d3ea71b0b4cf6c6912e3683d00469a4199153674328fa8cb0cf1141c3c7",
+    "crop": [
+      249,
+      182,
+      634,
+      634
+    ],
+    "sha256": "db85eac07aaffb56f19e53598e576a91f882ffa7e5374c270fd3793ca6080a0a"
+  },
+  {
+    "id": "editor-scouting-portrait-v2",
+    "desk": "scouting",
+    "displayName": "Scene Scout",
+    "credit": "Douglas Muth · CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:FurFright_2010_pink_and_white.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/0/05/FurFright_2010_pink_and_white.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/FurFright_2010_pink_and_white.jpg/960px-FurFright_2010_pink_and_white.jpg",
+    "inputSha256": "78abbe6e20226230b31d1f2a7e201a0864d23a5bf1928c1d6f4a758bef838054",
+    "crop": [
+      240,
+      248,
+      480,
+      480
+    ],
+    "sha256": "ba730838e0509e50b12f0d88642937240ae50c14ed6bf3415fca82aeae4a788a"
+  },
+  {
+    "id": "editor-cues-portrait-v2",
+    "desk": "cues",
+    "displayName": "Cue Card",
+    "credit": "Kali · CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Furred_white_axolotl-ConFuzzled_2022-Kali.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/7/7f/Furred_white_axolotl-ConFuzzled_2022-Kali.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7f/Furred_white_axolotl-ConFuzzled_2022-Kali.jpg/960px-Furred_white_axolotl-ConFuzzled_2022-Kali.jpg",
+    "inputSha256": "d034db56b25742fd9467de6e230086e7ce99e9a6ac28bef9a6008d5cced3d367",
+    "crop": [
+      129,
+      72,
+      702,
+      702
+    ],
+    "sha256": "6f41e7e8bf169f7a4911f88e039447216ad6bbf4dfec26cb321ac20623be8de5"
+  },
+  {
+    "id": "editor-map-portrait-v2",
+    "desk": "map",
+    "displayName": "Meetup Map",
+    "credit": "Douglas Muth · CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Protogen_at_MFF_2025.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "sourceImage": "https://upload.wikimedia.org/wikipedia/commons/6/65/Protogen_at_MFF_2025.jpg",
+    "inputUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Protogen_at_MFF_2025.jpg/960px-Protogen_at_MFF_2025.jpg",
+    "inputSha256": "ae24f7736fd2d6f756e71daf4680faa9d3663b99e885bc0d3e9cf57ca5d45722",
+    "crop": [
+      217,
+      97,
+      468,
+      468
+    ],
+    "sha256": "d466682b1c33fb975f94e8014c8a5c8c0cd77bba16d02193916e8e5f4b674a35"
+  }
+]

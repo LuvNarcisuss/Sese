@@ -13,6 +13,7 @@ final class ModerationAcceptanceFixture {
     let clips = [("paper", "Paper costume"), ("plaza", "Plaza dance"), ("mask", "Midnight mask")]
     private var reported = false
     private var blocked = false
+    private var commentReported = false
 
     func respond(_ path: String, method: String, query: [String: String], body: [String: Any]?) throws -> (Data, HTTPURLResponse) {
         let payload: Any
@@ -27,8 +28,11 @@ final class ModerationAcceptanceFixture {
                  "publisher_id": clip.0 == "plaza" ? NSNull() as Any : author]
             }
         case ("GET", "comments"):
-            payload = query["catalog_id"] == "eq.plaza" && !blocked
-                ? [["id": comment, "author_id": author, "body": "Midnight costume rehearsal."]] : []
+            var row: [String: Any] = ["id": comment, "author_id": author, "body": "Midnight costume rehearsal."]
+            if ProcessInfo.processInfo.arguments.contains("-PublicCommentAuthor") {
+                row["author"] = ["id": author, "display_name": "Night Weaver", "bio": "", "discoverable": true] as [String: Any]
+            }
+            payload = query["catalog_id"] == "eq.plaza" && !blocked && !commentReported ? [row] : []
         case ("GET", "profiles"):
             payload = [["id": viewer.uuidString, "display_name": "Festival visitor", "bio": "", "discoverable": false] as [String: Any]]
         case ("POST", "rpc/member_counts"):
@@ -38,7 +42,7 @@ final class ModerationAcceptanceFixture {
             payload = []
         case ("POST", "rpc/short_counts"):
             payload = (body?["items"] as? [String] ?? []).map { id -> [String: Any] in
-                ["catalog_id": id, "likes": 0, "saves": 0, "shares": 0, "comments": id == "plaza" && !blocked ? 1 : 0,
+                ["catalog_id": id, "likes": 0, "saves": 0, "shares": 0, "comments": id == "plaza" && !blocked && !commentReported ? 1 : 0,
                  "editorial_baseline": false]
             }
         case ("POST", "rpc/submit_video_report"):
@@ -46,9 +50,20 @@ final class ModerationAcceptanceFixture {
                   body?["report_reason"] as? String == "Harassment" else { throw CommunityError.invalidResponse }
             reported = true
             payload = NSNull()
-        case ("POST", "rpc/block_member"):
+        case ("POST", "rpc/submit_item_report"):
+            guard body?["target_type"] as? String == "member", (body?["item"] as? String)?.lowercased() == author,
+                  (body?["source"] as? String)?.lowercased() == "comment:" + comment else { throw CommunityError.invalidResponse }
+            payload = NSNull()
+        case ("POST", "rpc/submit_comment_report"), ("POST", "rpc/withdraw_comment_report"):
+            guard (body?["item"] as? String)?.lowercased() == comment else { throw CommunityError.invalidResponse }
+            commentReported = path == "rpc/submit_comment_report"
+            payload = NSNull()
+        case ("POST", "rpc/reported_comment_history"):
+            let rows = [["target_key": "comment:" + comment, "label": "Midnight costume rehearsal.", "detail": "City Resident · Spam"]]
+            payload = commentReported && body?["page_offset"] as? Int == 0 ? rows : []
+        case ("POST", "rpc/block_from_source"):
             guard (body?["peer"] as? String)?.lowercased() == author,
-                  (body?["comment"] as? String)?.lowercased() == comment else { throw CommunityError.invalidResponse }
+                  (body?["source"] as? String)?.lowercased() == "comment:" + comment else { throw CommunityError.invalidResponse }
             blocked = true
             payload = NSNull()
         case ("POST", "rpc/safety_history"), ("POST", "rpc/reported_video_history"):

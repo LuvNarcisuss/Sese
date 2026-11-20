@@ -20,7 +20,7 @@ final class ShortsPlaybackView: UIView {
     private let surface = ShortsPlayerSurface()
     private let poster = UIImageView()
     private let loading = UIActivityIndicatorView(style: .large)
-    private lazy var playButton = Theme.button("Play", accent: true) { [weak self] in
+    private lazy var playButton = Theme.bundledIcon("play", label: "Play video") { [weak self] in
         self?.togglePlayback()
     }
     private lazy var failure = Theme.card([
@@ -53,7 +53,6 @@ final class ShortsPlaybackView: UIView {
         poster.isUserInteractionEnabled = false
         poster.isAccessibilityElement = false
         loading.color = Theme.paper
-        playButton.accessibilityLabel = "Play video"
         playButton.isHidden = true
         failure.alignment = .center
         failure.isHidden = true

@@ -62,7 +62,7 @@ final class PullRefreshAcceptanceTests: XCTestCase {
         let onlyClip = try XCTUnwrap(clips.first)
         app.buttons["Cancel"].tap()
         app.buttons["Filter shorts"].tap()
-        app.sheets.buttons["Film Clip"].tap()
+        app.otherElements["dialog.Filter shorts"].buttons["Film Clip"].tap()
         let title = app.staticTexts["shorts.title"].firstMatch
         XCTAssertEqual(title.label, onlyClip)
         refresh(app, on: app, name: "Single filtered short")
@@ -79,13 +79,17 @@ final class PullRefreshAcceptanceTests: XCTestCase {
                                       timeout: 15), .completed)
     }
 
-    func testShortsCreatorSearchAndCommentsRefresh() {
+    func testShortsPublisherSearchAndCommentsRefresh() throws {
         let app = signedInApp()
         refresh(app, on: app, name: "Shorts")
         refresh(app, on: app, name: "Shorts repeated")
-        app.buttons["shorts.creator"].tap()
-        XCTAssertTrue(app.staticTexts["Creator"].waitForExistence(timeout: 10))
-        refresh(app, name: "Creator")
+        app.buttons["shorts.publisher"].tap()
+        XCTAssertTrue(app.staticTexts["Profile"].waitForExistence(timeout: 10))
+        refresh(app, name: "Publisher profile")
+        app.buttons["More options"].tap()
+        XCTAssertTrue(app.otherElements["dialog.Profile options"].buttons["Report user"].exists)
+        XCTAssertTrue(app.otherElements["dialog.Profile options"].buttons["Block user"].exists)
+        app.otherElements["dialog.Profile options"].buttons["Cancel"].tap()
         app.buttons["Back"].tap()
         app.buttons["shorts.comments"].tap()
         XCTAssertTrue(app.staticTexts["comments.total"].waitForExistence(timeout: 10))
@@ -108,6 +112,27 @@ final class PullRefreshAcceptanceTests: XCTestCase {
         XCTAssertNotEqual(before, videoRegion(app), "Video frames must advance while the discussion remains open.")
         XCTAssertEqual(app.staticTexts["comments.total"].label, count)
         XCTAssertTrue(app.staticTexts["comment.body"].firstMatch.exists)
+
+        let done = app.buttons["Done"]
+        let halfHeightTop = done.frame.minY
+        func openAuthorAndReturn(using identifier: String) throws {
+            let author = try XCTUnwrap(app.buttons.matching(identifier: identifier).allElementsBoundByIndex.first { $0.isHittable })
+            author.tap()
+            let title = app.staticTexts["Profile"]
+            XCTAssertTrue(title.waitForExistence(timeout: 8))
+            XCTAssertLessThan(title.frame.minY, app.frame.height * 0.2)
+            XCTAssertFalse(done.exists && done.isHittable)
+            app.buttons["Back"].tap()
+            XCTAssertTrue(done.waitForExistence(timeout: 8))
+        }
+        try openAuthorAndReturn(using: "comment.author.avatar")
+        let restored = NSPredicate { _, _ in done.isHittable && abs(done.frame.minY - halfHeightTop) < 8 }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: restored, object: done)], timeout: 5), .completed)
+        discussion.swipeUp()
+        let expanded = NSPredicate { _, _ in done.isHittable && done.frame.minY < halfHeightTop - 100 }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: expanded, object: done)], timeout: 5), .completed)
+        try openAuthorAndReturn(using: "comment.author.name")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: expanded, object: done)], timeout: 5), .completed)
         app.buttons["Done"].tap()
         app.buttons["Search shorts"].tap()
         let field = app.textFields["Search shorts"]
@@ -146,7 +171,7 @@ final class PullRefreshAcceptanceTests: XCTestCase {
         refresh(app, name: "Cosplay all")
         for scope in ["My posts", "Community", "Cosplay Look"] {
             app.buttons["Filter"].tap()
-            app.sheets.buttons[scope].tap()
+            app.otherElements["dialog.Filter"].buttons[scope].tap()
             refresh(app, name: "Cosplay \(scope)")
         }
         app.buttons["Open Judy and Nick at Anime Expo"].tap()
@@ -156,7 +181,7 @@ final class PullRefreshAcceptanceTests: XCTestCase {
         refresh(app, name: "Chats friends")
         for scope in ["Conversations", "Archived", "Friends"] {
             app.buttons["Conversation filters"].tap()
-            app.sheets.buttons[scope].tap()
+            app.otherElements["dialog.Chats"].buttons[scope].tap()
             refresh(app, name: "Chats \(scope)")
         }
         app.buttons["Find friends"].firstMatch.tap()
@@ -170,7 +195,7 @@ final class PullRefreshAcceptanceTests: XCTestCase {
             print("No discoverable member is available for the member-profile route.")
         }
         app.buttons["Filter members"].tap()
-        app.sheets.buttons["Following"].tap()
+        app.otherElements["dialog.Members"].buttons["Following"].tap()
         refresh(app, name: "Members following")
     }
 

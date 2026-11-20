@@ -136,3 +136,45 @@ Earlier runs encountered a temporary sign-in failure and timing issues with sear
 Migration 019 was deployed to Sese on November 18, 2026 as `20261118094427`. The authenticated `reported_video_history` RPC returns active reports for the caller with eligible catalog posters, member video thumbnails or public Cosplay preview paths. Author blocks and publication checks suppress previews while preserving the history card and its undo action. The existing safety history API remains available for earlier clients and visibility reconciliation. The isolated database checks cover all three target types, blocked publishers and account isolation.
 
 Sese UI Acceptance (iPhone 17 Pro) displayed the existing “Follow the conga line” report with its original poster in the same half-width cover tile used by profile galleries. The live UI test opened the long-press withdrawal menu and canceled the confirmation. The report remained present.
+
+### Community publisher profiles
+
+Migration 020 was deployed on November 20, 2026 as `20261120015053`. The four hosted Shorts retain their catalog IDs, media credits and editorial count baselines. Each has a distinct discoverable Sese publisher with sign-in disabled. The app uses the publisher ID for avatar navigation, the profile gallery, account reports and blocks.
+
+Production readback confirmed all four assignments and portraits. A rolled-back transaction using the authenticated role opened each publisher's profile data, submitted a user report, blocked the publisher, verified that the profile and video disappeared and that Settings could identify the block, then unblocked and verified that the video returned. No verification account, reports or block receipts remained. This was database verification only.
+
+### Comment moderation and member safety
+
+Migration 021 was deployed on November 20, 2026 as `20261120021004`. All 22 existing report rows had matching private audit receipts after deployment. The authenticated database checks ran in a rolled-back transaction. They covered private comment-author reporting, repeated submissions, per-account comment visibility and counts, private chats, source ownership, self-report rejection, both withdrawal orders, and preserving evidence after deleting the comment. A second rolled-back transaction verified both video-report and block undo orders for all four hosted Shorts.
+
+The client presents a dismissible success alert after acknowledgement. Reporting a comment refreshes the thread. Settings includes a Reported comments list with confirmed withdrawal. Blocking returns to the preceding eligible screen. Client changes received static checks only for this release.
+
+### Profile video totals
+
+Migration 022 was deployed to Sese on November 20, 2026 as `20261120025904`. Member profiles sum received likes and saves across the publisher's playable catalog Shorts, approved member works and approved Cosplay videos. Each Short contributes its existing editorial baseline once, plus its stored member reactions. Accounts without published videos receive zero for both totals.
+
+The deployed profile and video APIs returned matching counts for all four community publishers. A rolled-back authenticated transaction compared a five-video profile to the sum of the individual video APIs. Adding and removing reactions changed the correct total. Pending works and photos contributed nothing, an empty publisher returned zero and blocking hid the profile. This verification covered the database. No app build or simulator run was performed.
+
+### Editorial comment profiles
+
+Migration 023 was deployed to Sese as `20261120032630` on November 20, 2026. The 93 prepared discussions introduced by migration 017 now link to four public editorial profiles. Hem & Thread covers costume craft (28 comments), Frame Finder covers photography (16), Parade Post covers gatherings and movement (20), and Con Compass covers etiquette (29). Each uses a distinct credited avatar from the existing portrait library. At deployment, display names included “Editor”. Migration 026 later removed the suffix and cleared the eight desk bios. Sign-in is disabled for all four accounts.
+
+Comments use the existing author relationship for profile navigation, reporting and blocking. The app places the portrait to the left of the nickname and links both to the shared profile. If the comment author has a private profile, the app uses a fallback portrait and a restricted profile view. Its moderation actions reference the originating comment.
+
+Production readback confirmed all 93 assignments. A before-and-after digest matched across comment IDs, keys, parent videos, text and timestamps. Isolated and production database checks verified four different portraits, visible editor profiles, and independent comment reporting and editor blocking. All production verification writes were rolled back. The client received a syntax check only.
+
+### Expanded editorial bylines
+
+Migration 024 was deployed to Sese on November 20, 2026 as `20261120034121`. Swatch Book, Scene Scout, Cue Card and Meetup Map join the four existing editorial desks. Each of the four Shorts has comments from all eight accounts. The 24-comment fox thread has three per account, the 26-comment meetup thread has three or four, and the 21- and 22-comment threads have two or three. Existing moderation evidence and active blocks were considered before moving any byline.
+
+A rolled-back production transaction verified profile access, editorial attribution, reporting, blocking and independent undo. The digest of the original 93 comment IDs, keys, bodies, parent videos and timestamps matched after deployment. New display names take effect on refresh. The four additional portrait crops require the updated client. The Swift changes received a syntax check without an app build or simulator run.
+
+### Independent portraits and additional hosted Shorts
+
+Migration 025 was deployed to Sese as `20261120035824` on November 20, 2026. Eight editorial profiles received distinct photo references. The optional editorial portrait field leaves the existing member avatar choices available to older clients. The four new clips use four different original recordings and each belongs to one of the existing community publishers.
+
+Public Storage readback matched SHA-256 for eight portraits, four posters and four MP4s. All four MP4s returned matching HTTP 206 byte ranges. A read using the authenticated database role found eight hosted Shorts, all four new clip counts, four existing publishers and eight distinct editorial portraits among the comment authors. The isolated database regression passed. The Swift client received a syntax check. No iOS build or simulator acceptance was performed for this release.
+
+### Shorts on discussion profiles
+
+Migration 027 was deployed to Sese on November 20, 2026. An authenticated production read returned 11 Shorts. The original eight retained their publishers. The three new videos each matched their publisher's profile totals for likes and saves. Their estimates are stored separately from member reactions, with no initial share estimate. All six public media files matched the release hashes, and each MP4 served the expected byte range. The isolated migration and moderation checks passed. Verification covered the backend and Storage; no app build or simulator run was performed.

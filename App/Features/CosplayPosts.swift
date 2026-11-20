@@ -358,14 +358,11 @@ final class CosplayPostPage: CityPage, SafetyObserving {
             actions.addArrangedSubview(Theme.moreIcon(label: "Post options") { [weak self] in
                 guard let self else { return }
                 let id = self.post.id.uuidString
+                let title = self.post.title
                 let isVideo = self.post.mediaKind == .video
                 self.menu("Post options", choices: [
-                    ("Report post", .destructive, { [weak self] in self?.report(["cosplay_post_id": id], video: isVideo) }),
-                    ("Block author", .destructive, { [weak self] in
-                        guard let self else { return }
-                        self.confirmMemberBlock(self.post.ownerId, api: self.api)
-                    })
-                ])
+                    ("Report post", .destructive, { [weak self] in self?.report(["cosplay_post_id": id], subject: "post", detail: title, video: isVideo) })
+                ] + self.authorOptions(self.post.ownerId, name: self.post.author?.displayName, source: "cosplay:" + self.post.id.uuidString.lowercased(), api: self.api))
             })
         }
         guard post.status != "removed" else { return }
@@ -459,10 +456,10 @@ final class CosplayPostPage: CityPage, SafetyObserving {
     }
 
     private func confirmRemoval() {
-        let alert = UIAlertController(title: "Remove this post?",
+        let alert = ThemedDialog(title: "Remove this post?",
                                       message: "The post and its uploaded file will be removed.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Remove", style: .destructive) { [weak self] _ in
+        alert.addChoice("Cancel", style: .cancel)
+        alert.addChoice("Remove", style: .destructive) { [weak self] in
             guard let self else { return }
             Task {
                 do {
@@ -470,7 +467,7 @@ final class CosplayPostPage: CityPage, SafetyObserving {
                     self.navigationController?.popViewController(animated: true)
                 } catch { self.showStatus("Removal could not finish. Try again.") }
             }
-        })
+        }
         present(alert, animated: true)
     }
 }
