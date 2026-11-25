@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "communityPage": "#{h5Url}",
+    "districtSession": {
+      "socketAddress": "#{webSocketUrl}",
+      "districtSubscription": {
+        "joinAction": 10,
+        "districtChannel": "#{roomId}"
+      }
+    }
+  }
+}

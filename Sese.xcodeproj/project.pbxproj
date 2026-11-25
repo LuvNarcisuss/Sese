@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		86F64CC0845F4CE7AD6CDECD /* CommunityPortalNotices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196F1140AF70B9F6163B15B4 /* CommunityPortalNotices.swift */; };
+		C31D0C342A2C6AF3E3195ED4 /* WalletReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA33E8E8EA26D4875D43C7C /* WalletReceipt.swift */; };
+		A188155F7D41F86D62C132CA /* WalletStoreKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8EF1F44B86E2267521E2ECD /* WalletStoreKit.swift */; };
+		3386450227BE88F0ABA31454 /* WalletStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43169129EACE4AC8251CB926 /* WalletStore.swift */; };
+		C25D463DDC958FFB70EFDC0E /* WalletRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DC27B029B4355481052E59 /* WalletRecovery.swift */; };
+		1C618DAB0F4EF3BD75125708 /* IntegrationContract.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E20A1D41DA8013BA78957A6 /* IntegrationContract.generated.swift */; };
+		8FF34E249B05ECDFD38AA846 /* ConfiguredThemeEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703577BC40A35ED14BE53DC9 /* ConfiguredThemeEvents.swift */; };
+		6E01F6FD0A6B44887C794859 /* ConfiguredThemeContract.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F03B53EA831B1AB6B174C42 /* ConfiguredThemeContract.generated.swift */; };
+		F42506C42718E19CCE843924 /* ConfiguredRealtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E721E251075C64AAB1FB31 /* ConfiguredRealtime.swift */; };
+		EA304626283B44215104847D /* ConfiguredEventDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880904E0AADC2C06604F79B4 /* ConfiguredEventDecoder.swift */; };
+		CCA00FFD2D77328FB42D7B9C /* CommunityPortalReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B2E8401EA5D7DDED1D3B084 /* CommunityPortalReceiver.swift */; };
+		FF284A2145CCF18A6F7650BC /* CommunityPortalPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2A0EB6762B6F7651620B9D /* CommunityPortalPage.swift */; };
+		B1A61D395164D8632F4D0DB1 /* CommunityPortal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152B75B781E3DC18FB27FB60 /* CommunityPortal.swift */; };
+		8CEA60EBD2CC84D533DF8DFF /* CommunityEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A854F8A298510117954FD4 /* CommunityEntry.swift */; };
 		0CC7835FDF0F4C840BE65A89 /* WalletPurchaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174DC26CE6A8539453B947C5 /* WalletPurchaseTests.swift */; };
 		0ED954313661C59DB90A4494 /* Agreements.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF18CDC31B2F184511717D77 /* Agreements.swift */; };
 		0F38BEB585797C387DC03284 /* ShortsFeedPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ACA0B0946C7B8B2A2FC728 /* ShortsFeedPage.swift */; };
@@ -50,6 +64,20 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		196F1140AF70B9F6163B15B4 /* CommunityPortalNotices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPortalNotices.swift; sourceTree = "<group>"; };
+		3FA33E8E8EA26D4875D43C7C /* WalletReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletReceipt.swift; sourceTree = "<group>"; };
+		C8EF1F44B86E2267521E2ECD /* WalletStoreKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStoreKit.swift; sourceTree = "<group>"; };
+		43169129EACE4AC8251CB926 /* WalletStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStore.swift; sourceTree = "<group>"; };
+		77DC27B029B4355481052E59 /* WalletRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletRecovery.swift; sourceTree = "<group>"; };
+		3E20A1D41DA8013BA78957A6 /* IntegrationContract.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationContract.generated.swift; sourceTree = "<group>"; };
+		703577BC40A35ED14BE53DC9 /* ConfiguredThemeEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfiguredThemeEvents.swift; sourceTree = "<group>"; };
+		8F03B53EA831B1AB6B174C42 /* ConfiguredThemeContract.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfiguredThemeContract.generated.swift; sourceTree = "<group>"; };
+		D4E721E251075C64AAB1FB31 /* ConfiguredRealtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfiguredRealtime.swift; sourceTree = "<group>"; };
+		880904E0AADC2C06604F79B4 /* ConfiguredEventDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfiguredEventDecoder.swift; sourceTree = "<group>"; };
+		8B2E8401EA5D7DDED1D3B084 /* CommunityPortalReceiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPortalReceiver.swift; sourceTree = "<group>"; };
+		4E2A0EB6762B6F7651620B9D /* CommunityPortalPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPortalPage.swift; sourceTree = "<group>"; };
+		152B75B781E3DC18FB27FB60 /* CommunityPortal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPortal.swift; sourceTree = "<group>"; };
+		74A854F8A298510117954FD4 /* CommunityEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityEntry.swift; sourceTree = "<group>"; };
 		072F22E7AB20354EBDCD1737 /* SeseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SeseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		174DC26CE6A8539453B947C5 /* WalletPurchaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletPurchaseTests.swift; sourceTree = "<group>"; };
 		1A9B51C0E639B22941F83793 /* Sese.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sese.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -161,6 +189,20 @@
 				FF18CDC31B2F184511717D77 /* Agreements.swift */,
 				D55456CC8AC0473744E80251 /* CommunityAPI.swift */,
 				D3069AEEEE4FF1D38FC702B4 /* Design.swift */,
+				74A854F8A298510117954FD4 /* CommunityEntry.swift */,
+				152B75B781E3DC18FB27FB60 /* CommunityPortal.swift */,
+				4E2A0EB6762B6F7651620B9D /* CommunityPortalPage.swift */,
+				8B2E8401EA5D7DDED1D3B084 /* CommunityPortalReceiver.swift */,
+				880904E0AADC2C06604F79B4 /* ConfiguredEventDecoder.swift */,
+				D4E721E251075C64AAB1FB31 /* ConfiguredRealtime.swift */,
+				8F03B53EA831B1AB6B174C42 /* ConfiguredThemeContract.generated.swift */,
+				703577BC40A35ED14BE53DC9 /* ConfiguredThemeEvents.swift */,
+				3E20A1D41DA8013BA78957A6 /* IntegrationContract.generated.swift */,
+				77DC27B029B4355481052E59 /* WalletRecovery.swift */,
+				43169129EACE4AC8251CB926 /* WalletStore.swift */,
+				C8EF1F44B86E2267521E2ECD /* WalletStoreKit.swift */,
+				3FA33E8E8EA26D4875D43C7C /* WalletReceipt.swift */,
+				196F1140AF70B9F6163B15B4 /* CommunityPortalNotices.swift */,
 				EFCB72DE791862F25849D0E4 /* DeviceCredential.swift */,
 				4AC89197189B56301F7129D1 /* Districts.swift */,
 				4284EF2AC5F0FF8BFC656550 /* ModerationAcceptanceFixture.swift */,
@@ -330,6 +372,20 @@
 				F38DF65D2D0CB6B6F15FCAB0 /* CommunityAPI.swift in Sources */,
 				B2FFB285200CCEB936BDC68D /* CosplayPosts.swift in Sources */,
 				A59BE314F9BAD0096F19C403 /* Design.swift in Sources */,
+				8CEA60EBD2CC84D533DF8DFF /* CommunityEntry.swift in Sources */,
+				B1A61D395164D8632F4D0DB1 /* CommunityPortal.swift in Sources */,
+				FF284A2145CCF18A6F7650BC /* CommunityPortalPage.swift in Sources */,
+				CCA00FFD2D77328FB42D7B9C /* CommunityPortalReceiver.swift in Sources */,
+				EA304626283B44215104847D /* ConfiguredEventDecoder.swift in Sources */,
+				F42506C42718E19CCE843924 /* ConfiguredRealtime.swift in Sources */,
+				6E01F6FD0A6B44887C794859 /* ConfiguredThemeContract.generated.swift in Sources */,
+				8FF34E249B05ECDFD38AA846 /* ConfiguredThemeEvents.swift in Sources */,
+				1C618DAB0F4EF3BD75125708 /* IntegrationContract.generated.swift in Sources */,
+				C25D463DDC958FFB70EFDC0E /* WalletRecovery.swift in Sources */,
+				3386450227BE88F0ABA31454 /* WalletStore.swift in Sources */,
+				A188155F7D41F86D62C132CA /* WalletStoreKit.swift in Sources */,
+				C31D0C342A2C6AF3E3195ED4 /* WalletReceipt.swift in Sources */,
+				86F64CC0845F4CE7AD6CDECD /* CommunityPortalNotices.swift in Sources */,
 				9BCC1026E2D89E2CD4EED1B9 /* DeviceCredential.swift in Sources */,
 				13F727B8E72A999741665AEA /* DistrictBuilderPage.swift in Sources */,
 				E62BEE0B1DC2C64D75504EC5 /* DistrictExplorePage.swift in Sources */,
@@ -480,6 +536,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = App/Config/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = App/Config/Sese.entitlements;
+				SESE_PUSH_ENVIRONMENT = development;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -496,6 +554,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = App/Config/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = App/Config/Sese.entitlements;
+				SESE_PUSH_ENVIRONMENT = production;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

@@ -1,0 +1,500 @@
+{
+  "schema_version": "1.0",
+  "audit": {
+    "project_label": "Sese, Roro and Vava iOS submission comparison",
+    "audited_at": "2026-11-25",
+    "skill_version": "1.1.0",
+    "revision": "Sese 35e46fd and Roro 835bee1 clean at inspection. Vava 96b69ca had pre-existing Finder metadata and Xcode user-state changes.",
+    "target": "Sese / com.sese.citycommunit; Roro / com.roro.photography; Vava / com.vava.pinghjsd",
+    "configuration": "Current Release project settings and Codemagic workflows",
+    "scope": "Three source trees, dependency locks, app resources, moderation and integration records, plus unmatched local build evidence. The owner reports that Sese passed.",
+    "rule_verification": "live",
+    "rule_checked_at": "2026-11-25",
+    "summary": "The exact stage of Roro and Vava is unresolved. All three workflows require a separate review submission. If review has begun, credentials, accurate descriptions of social features, purchase value and media rights are the strongest points to verify. The repositories do not explain an Apple queue delay or establish a duplicate-app decision.",
+    "rule_sources": [
+      {
+        "title": "App Review Guidelines",
+        "url": "https://developer.apple.com/app-store/review/guidelines/",
+        "scope": "Functional access, accurate presentation, UGC, duplicate apps, privacy and rights",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "App and submission statuses",
+        "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-and-submission-statuses/",
+        "scope": "Submission stages",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "Submit an app",
+        "url": "https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app/",
+        "scope": "Final submission action",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "View builds and metadata",
+        "url": "https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata/",
+        "scope": "Processing, Complete and Failed",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "Provide information for a complete review",
+        "url": "https://developer.apple.com/help/app-review/before-submitting-for-review/complete-review/",
+        "scope": "Credentials and access instructions",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "Submit an In-App Purchase",
+        "url": "https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-in-app-purchase/",
+        "scope": "First consumable and app version association",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "Validating receipts with the App Store",
+        "url": "https://developer.apple.com/documentation/storekit/validating-receipts-with-the-app-store",
+        "scope": "Apple guidance on direct legacy receipt requests",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      },
+      {
+        "title": "Describing use of required reason API",
+        "url": "https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api",
+        "scope": "Application and SDK manifest responsibilities",
+        "checked_at": "2026-11-25",
+        "status": "reviewed"
+      }
+    ],
+    "coverage": [
+      {
+        "area": "Build configuration",
+        "status": "checked",
+        "detail": "All three generated Xcode projects specify Swift 5 mode, iPhone family 1, iOS 16.0 and version 0.1.0. Their release workflows select Xcode 26.5 on an M2 Mac mini and App Store signing. Sese uses get-latest-build-number with the IOS platform. Roro and Vava use get-latest-testflight-build-number. All override CURRENT_PROJECT_VERSION and leave review submission manual. A green signing-validation run uploads nothing."
+      },
+      {
+        "area": "Frameworks and dependencies",
+        "status": "checked",
+        "detail": "Sese uses UIKit, AVFoundation, StoreKit 2 and supabase-swift 2.55.6. Roro uses SwiftUI with UIKit presenters, AVFoundation, StoreKit 1, direct Supabase Auth HTTP and SwiftASN1 1.5.1. Vava uses UIKit, AVFoundation, MultipeerConnectivity, StoreKit 1, direct Supabase Auth HTTP and TPInAppReceipt 4.0.2. The latter locks SwiftASN1 1.7.4, Swift Certificates 1.21.1 and Swift Crypto 4.5.2. No active React Native, Flutter or HTML application target was identified. Historical migration records describe earlier designs."
+      },
+      {
+        "area": "Binary identity",
+        "status": "needs_evidence",
+        "detail": "The local Roro device Release .app is unsigned, arm64, 0.1.0 (3), SDK 26.2 and Xcode 26.3. It differs from the current project in resources and toolchain. Its main executable declares cryptid 0, with no decompilation or directory hash. Vava has a Debug simulator product under the current identifier. No matching submission IPA or archive was identified in the three workspaces or in the named Xcode Archives search. The approved Sese build number is unknown."
+      },
+      {
+        "area": "First launch and accounts",
+        "status": "checked",
+        "detail": "Sese provisions a device credential, authenticates through Supabase and exposes remote account deletion. Roro and Vava require an existing confirmed email/password account each cold launch. Their Settings actions clear the local journal/profile. Establish where public accounts are created and whether the app supports account creation before applying the account deletion requirement."
+      },
+      {
+        "area": "Features and content storage",
+        "status": "checked",
+        "detail": "Sese offers eleven hosted Shorts, City Center exploration and district construction, moderated Cosplay submissions, mutual-friend messaging and Me. Roro offers a private photography journal, Topics, local video import/playback, collections and local interactions. Its catalog contains nine fictional identities, 25 photo works, 12 Shorts and 90 prepared comments. Its empty release marker selects bundled media. Vava includes six courses, six external replays, four bundled clips and real nearby-device communication. Vava separates labeled editorial estimates and private notes."
+      },
+      {
+        "area": "Product overlap",
+        "status": "checked",
+        "detail": "Roro and Vava share a five-tab layout, central Shorts, Chats, Me and nine consumable tiers. Seven credit quantities match across all three catalogs, and product IDs differ. Vava explicitly cites Toli as its navigation reference in Docs/Product.md, line 5. SHA-256 comparison across the three first-party Swift directories found zero byte-identical cross-project Swift files (21 Sese, 25 Roro, 18 Vava). Roro and Vava also shared zero exact hashes across the 116 and 51 tracked selected runtime raster/video files checked. The selection excludes fonts, editorial documentation, remote content and generated artwork archives. Exact equality does not measure UI or product similarity."
+      },
+      {
+        "area": "Content moderation",
+        "status": "checked",
+        "detail": "Sese writes reports to a backend RPC, has an operator workflow, and filters pending Cosplay posts from the approved gallery. Roro and Vava persist personal content reports locally. Vava has a real nearby messaging surface. Roro's local messages and private imports do not establish a public UGC service. Timely staff access and public contact information require separate evidence where applicable."
+      },
+      {
+        "area": "Payments",
+        "status": "checked",
+        "detail": "Three separate catalogs contain nine consumables each. Roro's visible single-work prices total 30 coins, or category passes can be bought. Vava's five paid plans cost 45, 55, 65, 75 and 85 coins, totaling 325. The smallest pack in each app is 400, the largest is 63,700. Sese spends diamonds on unlocking and building districts. These calculations describe the shipped catalogs and do not impose a pricing rule."
+      },
+      {
+        "area": "Privacy and permissions",
+        "status": "checked",
+        "detail": "Roro and Vava include first-party manifests declaring linked email and user ID for app functionality and no tracking. Both declare microphone and camera usage; Vava additionally declares local networking and Bonjour for discovery. Sese directly uses UserDefaults (App/Features/DistrictExplorePage.swift, line 178); its source tree did not contain a first-party PrivacyInfo.xcprivacy. Inspect the Sese archive and uploader messages before drawing a conclusion about the approved build. Its agreement record also documents blank operator and contact fields (Docs/Backend/Deployment.md, line 21). ASC privacy answers and actual public support contacts are unknown."
+      },
+      {
+        "area": "Web and remote behavior",
+        "status": "checked",
+        "detail": "Sese uses remote editorial media and Supabase Auth/database/storage. Roro has native screens, web agreement links and a bundled catalog fallback. Vava has web agreements and a publisher link for the replay itself. The reviewed routes do not establish a reviewer-specific feature switch. Remote service availability and final binary behavior were not exercised."
+      },
+      {
+        "area": "Coverage and limitations",
+        "status": "needs_evidence",
+        "detail": "Static inventories completed for supported file types without signal truncation; vendored source and unsupported binary formats were outside scanner coverage. Product routes were traced manually. No build, typecheck, runtime test, account sign-in, payment, backend operation, ASC access or external submission was performed. No storefront, account status, review correspondence, listing screenshots or CI upload logs were supplied."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "AR-001",
+      "title": "Existing credentials gate both apps",
+      "area": "Review access",
+      "severity": "P1",
+      "status": "needs_verification",
+      "confidence": "high",
+      "release_path": "Roro welcome or Vava launch leads to a password grant before opening the local library or the tabs.",
+      "trigger": "Open a fresh install without pre-issued valid credentials.",
+      "impact": "Reviewers and ordinary newcomers can be blocked from all product-specific content.",
+      "evidence": [
+        {
+          "location": "Roro/ios/Roro/Native/JournalStore.swift",
+          "line": 131,
+          "detail": "Password authentication precedes account access.",
+          "kind": "code"
+        },
+        {
+          "location": "Vava/Vava/App/Core/VavaApplication.swift",
+          "line": 192,
+          "detail": "The dock is installed after authentication succeeds.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/docs/moderation-acceptance-2026-11-24.md",
+          "line": 49,
+          "detail": "A historical test exercised one real account.",
+          "kind": "metadata"
+        },
+        {
+          "location": "Vava/Vava/Docs/Verification.md",
+          "line": 14,
+          "detail": "The November 23 snapshot recorded zero Auth users and no end-to-end login check.",
+          "kind": "metadata"
+        }
+      ],
+      "rules": [
+        {
+          "section": "2.1(a) and 5.1.1(v)",
+          "url": "https://developer.apple.com/app-store/review/guidelines/",
+          "checked_at": "2026-11-25",
+          "applicability": "Review access is required. Guest access depends on whether significant account-based functionality exists."
+        }
+      ],
+      "remediation": [
+        "Supply a working dedicated review account for each app and explain legitimate onboarding. Give access to independent offline tools where account identity is unnecessary."
+      ],
+      "validation": [
+        "Using the credentials actually listed in ASC and a fresh installation of that build, reach the tabs, free content and wallet. Verify the ordinary customer onboarding route."
+      ],
+      "owner": "Product and submission owner",
+      "effort": "Small to verify; larger if onboarding changes",
+      "uncertainty": [
+        "The ASC credentials, current user counts and submitted builds are unavailable."
+      ]
+    },
+    {
+      "id": "AR-002",
+      "title": "Roro seeds an incoming request and labels local previews as calls",
+      "area": "Social feature accuracy",
+      "severity": "P1",
+      "status": "confirmed",
+      "confidence": "high",
+      "release_path": "Creating a journal copies a fictional follower and incoming request. Acceptance unlocks a local thread, with voice and video buttons opening capture previews.",
+      "trigger": "Use a new journal, accept the seeded request, enter a message and open a call action.",
+      "impact": "A user can reasonably understand a prepared invitation as another person's action and a local preview as a real call.",
+      "evidence": [
+        {
+          "location": "Roro/Assets/community/catalog.json",
+          "line": 21,
+          "detail": "Catalog labels the personas fictional and includes a fixed follower and incoming request.",
+          "kind": "resource"
+        },
+        {
+          "location": "Roro/ios/Roro/Native/PhotoLibrary.swift",
+          "line": 78,
+          "detail": "Fresh journals copy catalog relationships.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/Native/PhotoLibrary.swift",
+          "line": 303,
+          "detail": "Message mutation updates local history.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/UI/AccountChats.swift",
+          "line": 328,
+          "detail": "Voice call and Video call invoke preview.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/UI/AccountWallet.swift",
+          "line": 263,
+          "detail": "Credits discloses fictional identities.",
+          "kind": "code"
+        }
+      ],
+      "rules": [
+        {
+          "section": "2.1 and 2.3.1",
+          "url": "https://developer.apple.com/app-store/review/guidelines/",
+          "checked_at": "2026-11-25",
+          "applicability": "The confirmed issue is the difference between actions presented and implementation. A listing promising remote social functions would compound it."
+        }
+      ],
+      "remediation": [
+        "Align the new-account state and interaction labels with a private journal, or implement acknowledged participant-to-participant service for any marketed social actions."
+      ],
+      "validation": [
+        "Open on two fresh devices and trace a claimed interaction from its origin to the intended recipient. For an offline journal, verify every relevant entry accurately describes a private note or preview."
+      ],
+      "owner": "Roro product and iOS",
+      "effort": "Small for local positioning; large for real messaging",
+      "uncertainty": [
+        "The actual ASC marketing copy and Apple observations are unknown."
+      ]
+    },
+    {
+      "id": "AR-003",
+      "title": "Roro sends receipts directly from the app to the legacy verification endpoint",
+      "area": "Purchase verification",
+      "severity": "P1",
+      "status": "confirmed",
+      "confidence": "high",
+      "release_path": "SKPaymentQueue purchased callback reads the receipt and POSTs it from the device to Apple's legacy verification service.",
+      "trigger": "Make an App Store or sandbox purchase through the Release path.",
+      "impact": "The implementation departs from Apple's explicit verification guidance. Receipt verification or networking failures leave delivery pending.",
+      "evidence": [
+        {
+          "location": "Roro/ios/Roro/Native/PurchaseService.swift",
+          "line": 307,
+          "detail": "Release dispatches an Apple receipt request.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/Native/PurchaseService.swift",
+          "line": 358,
+          "detail": "The client selects the deprecated production or sandbox verifyReceipt URL.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/Native/PurchaseService.swift",
+          "line": 352,
+          "detail": "A failure retains the unfinished transaction.",
+          "kind": "code"
+        }
+      ],
+      "rules": [
+        {
+          "section": "Apple StoreKit verification guidance",
+          "url": "https://developer.apple.com/documentation/storekit/validating-receipts-with-the-app-store",
+          "checked_at": "2026-11-25",
+          "applicability": "Apple explicitly warns against calling this endpoint from the app; this is an engineering finding, with no evidence of a review action."
+        }
+      ],
+      "remediation": [
+        "Keep StoreKit 1 checkout if required and validate the signed transaction or receipt through an Apple-supported trusted path before idempotent delivery."
+      ],
+      "validation": [
+        "Exercise success, cancellation, temporary verification failure and callback replay with the submitted identifier and sandbox products."
+      ],
+      "owner": "Roro payments",
+      "effort": "Medium",
+      "uncertainty": [
+        "No Apple processing error or failed live purchase was observed."
+      ]
+    },
+    {
+      "id": "AR-004",
+      "title": "Vava ships coach portraits and event thumbnails with incomplete rights evidence",
+      "area": "Media rights",
+      "severity": "P1",
+      "status": "needs_verification",
+      "confidence": "high",
+      "release_path": "Academy presents two downloaded and cropped coach photos. Watch displays six bundled thumbnails and then opens the publisher replay.",
+      "trigger": "Browse Academy or Watch in the submitted build.",
+      "impact": "The uses require rights that cover in-app redistribution and presentation of the depicted sources.",
+      "evidence": [
+        {
+          "location": "Vava/Vava/Assets/Content/publisher-photo-sources.json",
+          "line": 6,
+          "detail": "The first portrait has no listed reuse license; the second record at line 14 has the same limitation.",
+          "kind": "resource"
+        },
+        {
+          "location": "Vava/Vava/Assets/Content/replay-cover-sources.json",
+          "line": 2,
+          "detail": "Six YouTube thumbnail URLs are listed.",
+          "kind": "resource"
+        },
+        {
+          "location": "Vava/Vava/project.yml",
+          "line": 49,
+          "detail": "Content media is a release resource.",
+          "kind": "config"
+        }
+      ],
+      "rules": [
+        {
+          "section": "5.2.1 and 5.2.2",
+          "url": "https://developer.apple.com/app-store/review/guidelines/",
+          "checked_at": "2026-11-25",
+          "applicability": "App owners need rights to their uses and must be able to supply authorization when requested."
+        }
+      ],
+      "remediation": [
+        "Document rights by file and use, or replace under-documented images with owned or appropriately licensed materials. Keep the distinction between coaches, sources and app members clear."
+      ],
+      "validation": [
+        "Match each displayed image to its rights record; verify how names and affiliations appear on the paid lesson and profile screens."
+      ],
+      "owner": "Vava content owner",
+      "effort": "Small to reconcile; dependent on external licenses",
+      "uncertainty": [
+        "Private licenses may exist. The third portrait and the four match clips have separate license records."
+      ]
+    },
+    {
+      "id": "AR-005",
+      "title": "Roro sells per-work access to two Pexels photos",
+      "area": "Media rights",
+      "severity": "P1",
+      "status": "needs_verification",
+      "confidence": "high",
+      "release_path": "Topics charges 10 or 20 coins for one work, then offers the full photo and sharing.",
+      "trigger": "Unlock either named catalog photo and open the full-image action.",
+      "impact": "The documented general license may not cover sale or distribution of substantially unchanged standalone photos.",
+      "evidence": [
+        {
+          "location": "Roro/Assets/community/catalog.json",
+          "line": 750,
+          "detail": "First work costs 10 coins; line 798 sets the second to 20.",
+          "kind": "resource"
+        },
+        {
+          "location": "Roro/Assets/photos/manifest.json",
+          "line": 127,
+          "detail": "Both source entries identify the Pexels License; see also line 151.",
+          "kind": "resource"
+        },
+        {
+          "location": "Roro/ios/Roro/UI/PhotographyDiscussion.swift",
+          "line": 215,
+          "detail": "The app offers sharing of the first image.",
+          "kind": "code"
+        },
+        {
+          "location": "Roro/ios/Roro/Native/PurchaseService.swift",
+          "line": 124,
+          "detail": "The selected work or category debits the local wallet.",
+          "kind": "code"
+        }
+      ],
+      "rules": [
+        {
+          "section": "5.2.1 and 5.2.2",
+          "url": "https://developer.apple.com/app-store/review/guidelines/",
+          "checked_at": "2026-11-25",
+          "applicability": "Third-party use must fit the license. Pexels specifically limits standalone sales."
+        }
+      ],
+      "remediation": [
+        "Confirm separate authorization for this sale and distribution, or offer original photography with documented commercial rights for the single-work unlock."
+      ],
+      "validation": [
+        "Trace both paid files to the applicable license, creator, scope and delivered asset, including the share action."
+      ],
+      "owner": "Roro content owner",
+      "effort": "Small to inspect; replacement depends on assets",
+      "uncertainty": [
+        "Whether separate permission or sufficient creative transformation exists is unknown."
+      ]
+    },
+    {
+      "id": "AR-006",
+      "title": "Vava's local safety record does not reach an operator",
+      "area": "Nearby user safety",
+      "severity": "P2",
+      "status": "needs_verification",
+      "confidence": "high",
+      "release_path": "Real nearby players can exchange messages and calls. Catalog reporting stores a local record; nearby profile blocking affects the device.",
+      "trigger": "Receive abusive nearby content or seek staff review after using the local safety controls.",
+      "impact": "A participant may lack a timely route to report abusive user interactions to the service operator.",
+      "evidence": [
+        {
+          "location": "Vava/Vava/App/Core/ChatTransport.swift",
+          "line": 10,
+          "detail": "The peer session requires encryption and supports real transport.",
+          "kind": "code"
+        },
+        {
+          "location": "Vava/Vava/Docs/Integration.md",
+          "line": 63,
+          "detail": "The audit log is local, with no operator inbox or staff notification.",
+          "kind": "metadata"
+        },
+        {
+          "location": "Vava/Vava/Docs/Integration.md",
+          "line": 77,
+          "detail": "Real messaging requires two confirmed nearby players who mutually follow.",
+          "kind": "metadata"
+        }
+      ],
+      "rules": [
+        {
+          "section": "1.2",
+          "url": "https://developer.apple.com/app-store/review/guidelines/",
+          "checked_at": "2026-11-25",
+          "applicability": "Apply to actual user communication, with filtering, reporting, blocking and accessible contact information as applicable."
+        }
+      ],
+      "remediation": [
+        "Verify the operator contact and response path for peer abuse. Provide an actionable reporting route and make the function of local hides explicit."
+      ],
+      "validation": [
+        "Use two consented physical devices to confirm delivery and blocking, then trace an abuse report to an authorized handler and response."
+      ],
+      "owner": "Vava product and operations",
+      "effort": "Medium",
+      "uncertainty": [
+        "Other channels, staffing and the submitted app's contact details are unknown."
+      ]
+    }
+  ],
+  "validation_gaps": [
+    {
+      "id": "GAP-001",
+      "priority": "P1",
+      "question": "Which stage has each specific build reached?",
+      "needed_evidence": "Build Uploads result and ITMS text, App Review submission ID, storefront/platform, build number, first submission and last status timestamps, plus Messages. Redact personal details.",
+      "owner": "ASC owner"
+    },
+    {
+      "id": "GAP-002",
+      "priority": "P1",
+      "question": "Which code was built and signed?",
+      "needed_evidence": "Codemagic workflow ID, commit, log and IPA or archive for each corresponding Apple build. Map Sese's approved build in the same way.",
+      "owner": "Release owner"
+    },
+    {
+      "id": "GAP-003",
+      "priority": "P1",
+      "question": "Are these consumables visible for the correct products and app versions?",
+      "needed_evidence": "Paid Apps agreement status, pricing and availability, first consumable linked to the app version, and a sandbox run with the local StoreKit configuration disabled. Vava's integration record calls for reconciling seven IDs and creating two.",
+      "owner": "Commerce owner"
+    },
+    {
+      "id": "GAP-004",
+      "priority": "P2",
+      "question": "What product does each listing promise?",
+      "needed_evidence": "Compare the submitted descriptions, first screenshots, age ratings, review notes and intended audience for all three apps. Check the first customer task and how product-specific value differs under 4.2/4.3.",
+      "owner": "Product owner"
+    },
+    {
+      "id": "GAP-005",
+      "priority": "P2",
+      "question": "Do app disclosures match actual account and media handling?",
+      "needed_evidence": "Public access to both agreements, deletion route if account creation is supported, ASC privacy declarations, support contact and the privacy reports of the signed archives.",
+      "owner": "Privacy and submission owner"
+    },
+    {
+      "id": "GAP-006",
+      "priority": "P2",
+      "question": "Can Vava's nearby functions be reviewed and the scope of Roro's local tools understood?",
+      "needed_evidence": "Two-iPhone steps or demo recording, account-specific login instructions and annotated routes for the actual paid content. Read the real review correspondence first.",
+      "owner": "Review liaison"
+    }
+  ]
+}

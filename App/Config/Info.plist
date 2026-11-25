@@ -35,6 +35,19 @@
 			</array>
 		</dict>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string></array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Use the camera when you choose to share video on a community page.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Use the microphone when you choose to share audio on a community page.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo or video to share in Sese.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiresFullScreen</key>

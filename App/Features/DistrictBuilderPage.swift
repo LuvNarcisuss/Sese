@@ -112,38 +112,28 @@ final class DistrictBuilderPage: CityPage {
             alert(WalletError.invalidDistrictName.localizedDescription)
             return
         }
-        do {
-            let ledger = try wallet.ledger(for: memberID)
-            let price = BuiltDistrict.price.formatted()
-            guard ledger.balance >= BuiltDistrict.price else {
-                let alert = ThemedDialog(title: "Not enough diamonds",
-                                              message: "Building a district costs \(price) diamonds.", preferredStyle: .alert)
-                alert.addChoice("Open wallet", style: .default) { [weak self] in self?.showWallet() }
-                alert.addChoice("Cancel", style: .cancel)
-                present(alert, animated: true)
-                return
-            }
-            let selectedStyle = style
-            let selectedPlan = plan
-            let count = selectedStyle.places(for: selectedPlan).count
-            let alert = ThemedDialog(title: "Build \(name)?",
-                                          message: "Spend \(price) diamonds to build this district with \(count) places to explore.", preferredStyle: .alert)
-            alert.addChoice("Cancel", style: .cancel)
-            alert.addChoice("Build district", style: .default) { [weak self] in
-                guard let self else { return }
+        let price = BuiltDistrict.price.formatted()
+        let selectedStyle = style
+        let selectedPlan = plan
+        let count = selectedStyle.places(for: selectedPlan).count
+        let alert = ThemedDialog(title: "Build \(name)?",
+                                      message: "Spend \(price) diamonds to build this district with \(count) places to explore.", preferredStyle: .alert)
+        alert.addChoice("Cancel", style: .cancel)
+        alert.addChoice("Build district", style: .default) { [weak self] in
+            guard let self else { return }
+            Task {
                 do {
-                    let district = try self.wallet.buildDistrict(id: self.buildID, name: name, style: selectedStyle,
-                                                                 plan: selectedPlan, for: self.memberID)
+                    let district = try await self.wallet.buildDistrict(id: self.buildID, name: name, style: selectedStyle,
+                                                                      plan: selectedPlan, for: self.memberID)
+                    guard self.viewIfLoaded?.window != nil else { return }
                     self.didBuild(district)
                 } catch {
-                    self.showStatus(error.localizedDescription)
+                    self.showStatus(self.wallet.message(for: error))
                     self.refreshBalance()
                 }
             }
-            present(alert, animated: true)
-        } catch {
-            showStatus(error.localizedDescription)
         }
+        present(alert, animated: true)
     }
 
     private func showWallet() { push(WalletPage(memberID: memberID, wallet: wallet, api: api)) }

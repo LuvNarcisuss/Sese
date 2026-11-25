@@ -65,6 +65,18 @@ final class InboxPage: CityPage, SafetyObserving {
         loadTask?.cancel()
     }
 
+    func applyCommunityInbox(_ rows: [InboxItem], friends: [ChatFriend]) {
+        loadTask?.cancel()
+        self.rows = rows.filter { !api.isBlocked($0.peerId) }
+        self.friends = friends.filter { !api.isBlocked($0.id) }
+        loaded = true
+        if isViewLoaded {
+            showStatus(nil)
+            render()
+            pageRefresh.finish()
+        }
+    }
+
     private func browse() { push(MembersPage(api: api)) }
 
     private func select(_ scope: Scope) {
@@ -384,8 +396,12 @@ final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegat
                 guard !Task.isCancelled else { return }
                 let maySend = relationships.contains { $0.followerId == self.api.memberID && $0.targetId == self.peerID }
                     && relationships.contains { $0.followerId == self.peerID && $0.targetId == self.api.memberID }
-                if let edge = messages.last {
-                    let displaced = self.newest.filter { old in old.createdAt < edge.createdAt }
+                let newIDs = Set(messages.map(\.id))
+                if messages.count == 50, !self.newest.isEmpty, self.newest.allSatisfy({ !newIDs.contains($0.id) }) {
+                    self.older.removeAll()
+                    self.hasEarlier = true
+                } else if let edge = messages.last {
+                    let displaced = self.newest.filter { ($0.createdAt, $0.id.uuidString) < (edge.createdAt, edge.id.uuidString) }
                     let known = Set(self.older.map(\.id))
                     self.older.append(contentsOf: displaced.filter { !known.contains($0.id) })
                 }
@@ -421,7 +437,7 @@ final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegat
     private func render() {
         list.clear()
         let ids = Set(newest.map(\.id))
-        let rows = newest + older.filter { !ids.contains($0.id) }.sorted { $0.createdAt > $1.createdAt }
+        let rows = newest + older.filter { !ids.contains($0.id) }.sorted { ($0.createdAt, $0.id.uuidString) > ($1.createdAt, $1.id.uuidString) }
         guard !rows.isEmpty else {
             list.addArrangedSubview(Theme.empty("No messages yet", "Say hello to start the conversation."))
             return
@@ -453,17 +469,17 @@ final class ThreadPage: CityPage, SafetyObserving, PHPickerViewControllerDelegat
             list.addArrangedSubview(card)
         }
         if newest.count == 50 && hasEarlier {
-            list.addArrangedSubview(Theme.button("Older messages") { [weak self] in self?.loadOlder(rows.last?.createdAt) })
+            list.addArrangedSubview(Theme.button("Older messages") { [weak self] in self?.loadOlder(rows.last) })
         }
     }
 
-    private func loadOlder(_ timestamp: String?) {
-        guard let timestamp, !loadingEarlier else { return }
+    private func loadOlder(_ cursor: Message?) {
+        guard let cursor, !loadingEarlier else { return }
         loadingEarlier = true
         Task {
             defer { loadingEarlier = false }
             do {
-                let messages = try await api.thread(peerID, before: timestamp)
+                let messages = try await api.thread(peerID, before: cursor)
                 guard !api.isBlocked(peerID) else { return }
                 hasEarlier = messages.count == 50
                 let known = Set(older.map(\.id))

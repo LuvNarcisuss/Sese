@@ -21,6 +21,7 @@ enum Resources {
 
 enum CommunityError: LocalizedError {
     case configuration, agreements, credentialStorage, invalidResponse, unavailable, request(Int), invalidInput(String)
+    case entryConnectionClosed, entryPageMissing, entryPageLoadFailed
 
     var errorDescription: String? {
         switch self {
@@ -29,6 +30,9 @@ enum CommunityError: LocalizedError {
         case .credentialStorage: return "This iPhone could not open its sign-in credential. Please try again."
         case .invalidResponse: return "The service returned an unexpected response."
         case .unavailable: return "This item is no longer available."
+        case .entryConnectionClosed: return "The sign-in connection closed. Please try again."
+        case .entryPageMissing: return "The sign-in service did not send a verified page. Please try again later."
+        case .entryPageLoadFailed: return "The sign-in page could not be loaded. Please try again."
         case .request(let status):
             return status == 403 ? "This action is unavailable for your account." : "The request could not be completed. Please try again."
         case .invalidInput(let message): return message
@@ -202,13 +206,7 @@ final class CommunityAPI {
     let client: SupabaseClient
     let agreements: AgreementSet?
     private(set) var memberID: UUID?
-    private var useInitialEditorialCounts = true
     private var shortCountCache: [String: ShortCounts] = [:]
-    private var acknowledgedShortReactions: [String: [String: Bool]] = [:]
-    private static let editorialShortCounts: [String: ShortCounts] = {
-        let rows = (try? Resources.decode([ShortCounts].self, "EditorialShortCounts.json")) ?? []
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.catalogId, $0) })
-    }()
     private static let chatPhotoBucket = "chat-photos"
     private static let cosplayBucket = "cosplay-media"
     nonisolated static let maximumCosplayMediaBytes = 6_291_456
@@ -231,41 +229,49 @@ final class CommunityAPI {
         client = SupabaseClient(supabaseURL: configuration.url, supabaseKey: configuration.publishableKey)
     }
 
-    func signIn() async throws {
+    func signIn() async throws -> ConfiguredBootstrapContinuation {
         guard let agreements else { throw CommunityError.agreements }
 #if DEBUG && targetEnvironment(simulator) && SESE_SAFETY_ACCEPTANCE
         if let fixture = ModerationAcceptanceFixture.shared {
             memberID = fixture.viewer
-            return
+            return .standalone
         }
 #endif
+        guard configuration.url.absoluteString == SupabaseIntegrationContract.projectURLString else {
+            throw CommunityError.configuration
+        }
+        try await EntryConnection.shared.wait(for: configuration.url)
         let credential = try DeviceCredential.loadOrCreate()
         let session: Session
-        do {
-            session = try await client.auth.signIn(email: credential.email, password: credential.password)
-        } catch let error as AuthError where error.errorCode == .invalidCredentials {
-            try await provisionDeviceAccount(credential, agreementRevision: agreements.revision)
-            session = try await client.auth.signIn(email: credential.email, password: credential.password)
+        if client.auth.currentSession?.user.email == credential.email {
+            do {
+                session = try await client.auth.session
+            } catch let error as AuthError where [.sessionExpired, .sessionNotFound, .refreshTokenNotFound, .refreshTokenAlreadyUsed].contains(error.errorCode) {
+                session = try await client.auth.signIn(email: credential.email, password: credential.password)
+            }
+        } else {
+            do {
+                session = try await client.auth.signIn(email: credential.email, password: credential.password)
+            } catch let error as AuthError where error.errorCode == .invalidCredentials {
+                try await provisionDeviceAccount(credential, agreementRevision: agreements.revision)
+                session = try await client.auth.signIn(email: credential.email, password: credential.password)
+            }
         }
+        guard !session.user.isAnonymous, session.user.email == credential.email else { throw CommunityError.invalidResponse }
+        let configuration = try await bootstrapEntry(account: session.user.id, revision: agreements.revision)
+        try Task.checkCancellation()
+        if memberID != session.user.id {
+            resetSafety()
+            shortCountCache.removeAll()
+        }
+        memberID = session.user.id
+        return configuration
+    }
 
-        do {
-            guard session.user.isAnonymous == false, session.user.email == credential.email else {
-                throw CommunityError.invalidResponse
-            }
-            struct Bootstrap: Decodable { let code: Int; let data: [String: String] }
-            let result: Bootstrap = try await read("rpc/bootstrap", method: "POST",
-                                                   body: ["agreement_revision": agreements.revision])
-            guard result.code == 0, result.data.isEmpty else { throw CommunityError.invalidResponse }
-            if memberID != session.user.id {
-                resetSafety()
-                shortCountCache.removeAll()
-                acknowledgedShortReactions.removeAll()
-            }
-            memberID = session.user.id
-        } catch {
-            try? await client.auth.signOut(scope: .local)
-            throw error
-        }
+    func endExternalSession() {
+        memberID = nil
+        resetSafety()
+        shortCountCache.removeAll()
     }
 
     private func provisionDeviceAccount(_ credential: DeviceCredential, agreementRevision: String) async throws {
@@ -293,7 +299,6 @@ final class CommunityAPI {
         memberID = nil
         resetSafety()
         shortCountCache.removeAll()
-        acknowledgedShortReactions.removeAll()
     }
 
     func deleteAccount() async throws {
@@ -467,7 +472,7 @@ final class CommunityAPI {
     }
 
     func cachedShortCount(_ id: String) -> ShortCounts? {
-        shortCountCache[id] ?? (useInitialEditorialCounts ? Self.editorialShortCounts[id] : nil)
+        shortCountCache[id]
     }
 
     func shortCounts(_ ids: [String]) async throws -> [ShortCounts] {
@@ -491,53 +496,17 @@ final class CommunityAPI {
                 }
                 rows = try await read("rpc/short_counts", method: "POST", body: ["items": ids])
             }
-        } catch CommunityError.request(404) {
-            rows = try await availableShortCounts(ids, account: account)
+        } catch {
+            if account == memberID && revision == safetyRevision && !Task.isCancelled {
+                for id in ids { shortCountCache.removeValue(forKey: id) }
+            }
+            throw error
         }
         try Task.checkCancellation()
         guard memberID == account else { throw CommunityError.unavailable }
         guard revision == safetyRevision else { throw CancellationError() }
         for row in rows { shortCountCache[row.catalogId] = row }
         return rows
-    }
-
-    private func availableShortCounts(_ ids: [String], account: UUID) async throws -> [ShortCounts] {
-        async let reactions = self.reactions()
-        let commentTotals = try await withThrowingTaskGroup(of: (String, Int).self) { group in
-            for id in ids {
-                group.addTask { [self] in (id, try await self.visibleCommentCount(id)) }
-            }
-            var totals: [String: Int] = [:]
-            for try await (id, count) in group { totals[id] = count }
-            return totals
-        }
-        let byItem = Dictionary(grouping: try await reactions, by: \.catalogId)
-        let shares = pendingShortShares(for: account)
-        return ids.map { id in
-            let baseline = Self.editorialShortCounts[id]
-            let activity = Set((byItem[id] ?? []).map(\.kind))
-            let acknowledged = acknowledgedShortReactions[id] ?? [:]
-            acknowledgedShortReactions[id] = acknowledged.filter { activity.contains($0.key) != $0.value }
-            let liked = acknowledged["like"] ?? activity.contains("like")
-            let saved = acknowledged["save"] ?? activity.contains("save")
-            return ShortCounts(catalogId: id,
-                               likes: (baseline?.likes ?? 0) + (liked ? 1 : 0),
-                               comments: commentTotals[id] ?? 0,
-                               saves: (baseline?.saves ?? 0) + (saved ? 1 : 0),
-                               shares: (baseline?.shares ?? 0) + (shares[id]?.count ?? 0),
-                               editorialBaseline: baseline != nil, isLimited: true)
-        }
-    }
-
-    private func visibleCommentCount(_ id: String) async throws -> Int {
-        let (_, response) = try await response("comments", method: "HEAD",
-                                               query: ["catalog_id": "eq.\(id)", "select": "id", "limit": "1"],
-                                               body: nil, prefer: "count=exact")
-        guard let range = response.value(forHTTPHeaderField: "Content-Range"),
-              let total = range.split(separator: "/").last.flatMap({ Int($0) }), total >= 0 else {
-            throw CommunityError.invalidResponse
-        }
-        return total
     }
 
     func recordShortShare(_ id: String, event: UUID) async throws {
@@ -547,6 +516,7 @@ final class CommunityAPI {
         } catch CommunityError.request(404) {
             guard memberID == account else { throw CommunityError.unavailable }
             updatePendingShortShare(id, event: event, account: account, add: true)
+            throw CommunityError.request(404)
         }
     }
 
@@ -600,15 +570,7 @@ final class CommunityAPI {
         } else {
             try await write("reactions", method: "DELETE", query: ["catalog_id": "eq.\(item)", "kind": "eq.\(kind)"])
         }
-        guard memberID == account, let counts = cachedShortCount(item), counts.isLimited == true else { return }
-        acknowledgedShortReactions[item, default: [:]][kind] = enabled
-        let baseline = Self.editorialShortCounts[item]
-        shortCountCache[item] = ShortCounts(catalogId: item,
-                                           likes: kind == "like" ? (baseline?.likes ?? 0) + (enabled ? 1 : 0) : counts.likes,
-                                           comments: counts.comments,
-                                           saves: kind == "save" ? (baseline?.saves ?? 0) + (enabled ? 1 : 0) : counts.saves,
-                                           shares: counts.shares,
-                                           editorialBaseline: counts.editorialBaseline, isLimited: true)
+        guard memberID == account else { throw CommunityError.unavailable }
     }
 
     func comments(_ item: String) async throws -> [Comment] {
@@ -638,7 +600,6 @@ final class CommunityAPI {
         return links
     }
     private func resetSafety() {
-        useInitialEditorialCounts = true
         hiddenVideos.removeAll()
         hiddenComments.removeAll()
         blockedPeers.removeAll()
@@ -660,7 +621,6 @@ final class CommunityAPI {
     }
 
     private func publishSafetyChange() {
-        useInitialEditorialCounts = false
         safetyRevision += 1
         shortCountCache.removeAll()
         NotificationCenter.default.post(name: Self.safetyChanged, object: self)
@@ -822,11 +782,13 @@ final class CommunityAPI {
 
     func inbox() async throws -> [InboxItem] { try await read("rpc/inbox", method: "POST", body: [:]) }
 
-    func thread(_ peer: UUID, before: String? = nil) async throws -> [Message] {
+    func thread(_ peer: UUID, before: Message? = nil) async throws -> [Message] {
         let other = peer.uuidString
         var query = ["or": "(sender_id.eq.\(other),recipient_id.eq.\(other))",
                      "order": "created_at.desc,id.desc", "limit": "50"]
-        if let before { query["created_at"] = "lt.\(before)" }
+        if let before {
+            query["and"] = "(or(created_at.lt.\(before.createdAt),and(created_at.eq.\(before.createdAt),id.lt.\(before.id.uuidString))))"
+        }
         return try await read("messages", query: query)
     }
 
@@ -879,16 +841,25 @@ final class CommunityAPI {
     func watchMessages(_ onChange: @escaping @MainActor () -> Void) async {
         let channel = client.channel("inbox-\(UUID().uuidString)")
         let changes = channel.postgresChange(InsertAction.self, schema: "public", table: "messages")
+        guard let owner = memberID else { return }
+        let statuses = channel.statusChange
+        let subscription = Task {
+            for await status in statuses {
+                guard !Task.isCancelled, self.memberID == owner else { return }
+                if status == .subscribed { onChange() }
+            }
+        }
+        defer { subscription.cancel() }
         do {
             try await channel.subscribeWithError()
-            if !Task.isCancelled { onChange() }
             for await _ in changes {
-                if Task.isCancelled { break }
+                guard !Task.isCancelled, self.memberID == owner else { break }
                 onChange()
             }
         } catch {
-            if !Task.isCancelled { onChange() }
+            if !Task.isCancelled, memberID == owner { onChange() }
         }
+        subscription.cancel()
         await client.removeChannel(channel)
     }
 

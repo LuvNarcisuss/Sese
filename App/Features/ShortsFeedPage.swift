@@ -333,6 +333,10 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
                                                name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(safetyChanged(_:)),
                                                name: CommunityAPI.safetyChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(playbackVisibilityChanged),
+                                               name: UIWindow.didBecomeKeyNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(playbackVisibilityChanged),
+                                               name: UIWindow.didResignKeyNotification, object: nil)
         loadCatalog()
     }
 
@@ -461,7 +465,7 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
     @objc private func playbackVisibilityChanged() {
         guard let current else { return }
         current.playback.setActive(!api.isHidden(current.item) && visible && !pager.view.isHidden && !paging && !overlayOpen && !searching &&
-                                   UIApplication.shared.applicationState == .active)
+                                   view.window?.isKeyWindow == true && UIApplication.shared.applicationState == .active)
     }
 
     private func updateTabBarAppearance(fullBleed: Bool) {
@@ -794,6 +798,23 @@ final class ShortsFeedPage: UIViewController, UIPageViewControllerDataSource, UI
         countsTask = Task { [weak self, api] in
             guard (try? await api.shortCounts(ids)) != nil, let self, !Task.isCancelled else { return }
             self.renderReactions()
+        }
+    }
+
+    func applyCommunityShorts(_ rows: [CatalogItem], reactions: [Reaction]) throws {
+        guard pending.isEmpty, !paging, !pageRefresh.isRefreshing else { throw CommunityError.unavailable }
+        catalogTask?.cancel()
+        visibleCatalogTask?.cancel()
+        reactionsTask?.cancel()
+        countsTask?.cancel()
+        catalog = rows.filter { !api.isHidden($0) }.compactMap { HostedShort(item: $0, projectURL: api.configuration.url) }
+        self.reactions = Dictionary(grouping: reactions, by: \.catalogId).mapValues { Set($0.map(\.kind)) }
+        reactionsReady = true
+        loaded = true
+        if isViewLoaded {
+            applyFilters()
+            renderReactions()
+            renderSearchResults()
         }
     }
 

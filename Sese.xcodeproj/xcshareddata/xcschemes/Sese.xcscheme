@@ -76,6 +76,9 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
       </CommandLineArguments>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="SESE_LOCAL_STOREKIT" value="1" isEnabled="YES"/>
+      </EnvironmentVariables>
       <StoreKitConfigurationFileReference
          identifier = "../../Configuration/SeseDiamonds.storekit">
       </StoreKitConfigurationFileReference>

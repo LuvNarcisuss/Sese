@@ -2,7 +2,7 @@
 
 ## Binding
 
-- Stage A is partially delivered. Stage B has no configuration.
+- The original Stage A deployment is recorded below. Stage B uses this same project. See the [integration and recovery notes](../BackendAPI/Integration.md) for deployed versions and outstanding external checks.
 - Project: Sese, `ujclifehtfrxtrijlaia`, Tokyo (`ap-northeast-1`).
 - Organization: the owner's selected gmail organization. Quoted incremental monthly cost: USD 0 at creation.
 - Client integration: device-based one-tap sign-in using Supabase Swift 2.55.6 and a publishable client key.
@@ -66,10 +66,10 @@ The isolated PostgreSQL harness also verified approval visibility, blocking, and
 
 ## Outstanding
 
-1. The app uses Bundle ID `com.sese.citycommunit`. The signing team and purchase identifiers are pending.
+1. The app uses Bundle ID `com.sese.citycommunit`. The signing team is pending. Nine Sese purchase identifiers are configured locally and await confirmation against the Apple catalog.
 2. A trusted operator reviews pending link submissions and Cosplay posts from the Supabase console. The project has no automated review service or assigned moderation staff.
-3. Two-account text and photo messaging, Realtime delivery, denial to outsiders, photo cleanup, and iPhone presentation are unverified. Voice and video calling require an RTC service.
-4. StoreKit product IDs, device signing, purchase environments, and device-specific behavior are unverified. Wallet credit is device-local and account-scoped. No client-writable cloud balance exists.
+3. The November 25 hosted chat check below covers two-account text and photo delivery, outsider access and photo cleanup. The current iPhone chat UI has separate acceptance coverage. Voice and video calling require an RTC service.
+4. Production StoreKit catalog availability, device signing, and an actual purchase remain unverified. The Stage B migration makes the Supabase wallet authoritative for native purchases and district spending.
 
 ## Evidence
 
@@ -178,3 +178,14 @@ Public Storage readback matched SHA-256 for eight portraits, four posters and fo
 ### Shorts on discussion profiles
 
 Migration 027 was deployed to Sese on November 20, 2026. An authenticated production read returned 11 Shorts. The original eight retained their publishers. The three new videos each matched their publisher's profile totals for likes and saves. Their estimates are stored separately from member reactions, with no initial share estimate. All six public media files matched the release hashes, and each MP4 served the expected byte range. The isolated migration and moderation checks passed. Verification covered the backend and Storage; no app build or simulator run was performed.
+
+## Hosted chat acceptance on November 25, 2026
+
+Three disposable accounts used the shipping device-provisioning, password sign-in and consent bootstrap endpoints in project `ujclifehtfrxtrijlaia`. Two participants followed each other. The third had no relationship to either. Each joined the messages INSERT stream using its own access token and received a subscription acknowledgement.
+
+- Each participant received the other participant's text over the live socket. Repeating a send with its original ID left one readable row. Reading the thread and saving the observed read timestamp cleared the persisted inbox unread flag.
+- A receiver disconnected before a send, rejoined, read the missing message from history, then received a fresh photo message over the new subscription. Its private authenticated download matched the uploaded bytes.
+- The third account saw none of the test message IDs on its subscription. It could neither read the photo message, download its file nor send to a participant. Removing one follow prevented further sends between the former mutual friends.
+- All sockets were closed. Cleanup used the app's authenticated Storage and account deletion routes. An independent database query scoped to the three account IDs returned zero accounts, profiles, messages, follows, inbox preferences and private photo objects.
+
+These checks used backend clients. They did not exercise the iPhone UI or external console. The owner supplied external origin `https://sese.huisgdd.top` and console AppID `32948410` for the Stage B integration.

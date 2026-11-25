@@ -911,7 +911,7 @@ final class WalletPage: CityPage {
     private var priceFailure: String?
     private var ledgerFailure: String?
     private var offers: [WalletOffer] = []
-    private var products: [String: Product] = [:]
+    private var products: [String: SKProduct] = [:]
     private var diamondImage: UIImage?
     private var catalogRequest: Task<Void, Never>?
     private var catalogTimeout: Task<Void, Never>?
@@ -964,7 +964,10 @@ final class WalletPage: CityPage {
         history.clear()
         do {
             let ledger = try wallet.ledger(for: memberID)
-            ledgerFailure = nil
+            let previousFailure = ledgerFailure
+            ledgerFailure = try wallet.pendingStatus(for: memberID)
+            if let ledgerFailure { showStatus(ledgerFailure) }
+            else if previousFailure != nil { showStatus(nil) }
             balance.text = ledger.balance.formatted()
             if ledger.purchases.isEmpty { history.addArrangedSubview(Theme.empty("No purchases yet", "Completed purchases appear here.")) }
             for purchase in ledger.purchases {
@@ -1022,9 +1025,13 @@ final class WalletPage: CityPage {
         recoveryRequest?.cancel()
         recoveryRequest = Task { [weak self] in
             guard let self else { return }
-            await wallet.recoverAndWait(for: memberID)
+            var errorMessage: String?
+            do { try await wallet.recoverAndWait(for: memberID, userInitiated: true) }
+            catch { errorMessage = wallet.message(for: error) }
             guard !Task.isCancelled else { return }
             updateLedger()
+            ledgerFailure = errorMessage ?? ledgerFailure
+            if let errorMessage { showStatus(errorMessage) }
             recoveryRequest = nil
             if catalogRequest == nil { pageRefresh.finish(error: priceFailure ?? ledgerFailure) }
         }
@@ -1062,14 +1069,14 @@ final class WalletPage: CityPage {
         renderOffers()
     }
 
-    private func availabilityMessage(for products: [String: Product]) -> String? {
-        if !AppStore.canMakePayments { return WalletError.paymentsRestricted.errorDescription }
+    private func availabilityMessage(for products: [String: SKProduct]) -> String? {
+        if !SKPaymentQueue.canMakePayments() { return WalletError.paymentsRestricted.errorDescription }
         if products.isEmpty { return "No diamond packs are available right now. Pull down to check again." }
         if products.count < offers.count { return "Some packs are unavailable. Pull down to check again." }
         return nil
     }
 
-    private func finishLoading(_ products: [String: Product], message: String?) {
+    private func finishLoading(_ products: [String: SKProduct], message: String?) {
         catalogTimeout?.cancel()
         catalogTimeout = nil
         catalogRequest = nil
@@ -1099,9 +1106,9 @@ final class WalletPage: CityPage {
         }
     }
 
-    private func offerButton(_ offer: WalletOffer, product: Product?) -> UIButton {
+    private func offerButton(_ offer: WalletOffer, product: SKProduct?) -> UIButton {
         let quantity = offer.diamonds.formatted()
-        let price = product?.displayPrice ?? (catalogRequest == nil ? "Unavailable" : "—")
+        let price = product?.walletPrice ?? (catalogRequest == nil ? "Unavailable" : "—")
         var titleAttributes = AttributeContainer()
         titleAttributes.font = Theme.font(21, display: true)
         var priceAttributes = AttributeContainer()
@@ -1124,17 +1131,21 @@ final class WalletPage: CityPage {
             self?.confirmPurchase(offer)
         })
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 68).isActive = true
-        button.isEnabled = product != nil && !buying && AppStore.canMakePayments
+        button.isEnabled = product != nil && !buying && SKPaymentQueue.canMakePayments()
         button.accessibilityIdentifier = "wallet.package.\(offer.diamonds)"
         button.accessibilityLabel = "\(quantity) diamonds"
-        button.accessibilityValue = product?.displayPrice ?? (catalogRequest == nil ? "Unavailable" : "Checking price")
+        button.accessibilityValue = product?.walletPrice ?? (catalogRequest == nil ? "Unavailable" : "Checking price")
         return button
     }
 
     private func confirmPurchase(_ offer: WalletOffer) {
         guard !buying, let product = products[offer.productID], presentedViewController == nil else { return }
+        var message = [product.walletPrice, "Sese sends your purchase receipt and signed transaction to Supabase to verify and credit this account."].compactMap { $0 }.joined(separator: "\n\n")
+        if wallet.hasUncertainNativePurchase(offer.productID, member: memberID) {
+            message += "\n\nApple has not returned your previous transaction. Continue only to make a separate purchase."
+        }
         let confirmation = ThemedDialog(title: "Buy \(offer.diamonds.formatted()) diamonds?",
-                                             message: product.displayPrice, preferredStyle: .alert)
+                                             message: message, preferredStyle: .alert)
         confirmation.addChoice("Cancel", style: .cancel)
         confirmation.addChoice("Continue", style: .default) { [weak self] in
             self?.buy(product)
@@ -1142,8 +1153,8 @@ final class WalletPage: CityPage {
         present(confirmation, animated: true)
     }
 
-    private func buy(_ product: Product) {
-        guard !buying, products[product.id] != nil, let scene = viewIfLoaded?.window?.windowScene else { return }
+    private func buy(_ product: SKProduct) {
+        guard !buying, products[product.productIdentifier] != nil, let scene = viewIfLoaded?.window?.windowScene else { return }
         buying = true
         showStatus(nil)
         renderOffers()
@@ -1151,12 +1162,12 @@ final class WalletPage: CityPage {
             defer { buying = false; renderOffers() }
             do { if let message = try await wallet.buy(product, member: memberID, in: scene) { showStatus(message) } }
             catch WalletError.productUnavailable {
-                products.removeValue(forKey: product.id)
+                products.removeValue(forKey: product.productIdentifier)
                 setOfferStatus(availabilityMessage(for: products))
                 showStatus(WalletError.productUnavailable.errorDescription)
             }
             catch let error as WalletError { showStatus(error.localizedDescription) }
-            catch { showStatus("The purchase could not be completed. Please try again.") }
+            catch { showStatus(wallet.message(for: error)) }
         }
     }
 }

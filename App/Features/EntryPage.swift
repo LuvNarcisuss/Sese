@@ -5,13 +5,13 @@ final class EntryPage: UIViewController {
     enum Mode { case welcome, unavailable }
     let mode: Mode
     let api: CommunityAPI?
-    let entered: () -> Void
+    let entered: () async throws -> Void
     private let status = Theme.label("", size: 16, color: Theme.coral)
     private weak var consentBox: UIButton?
     private weak var consentText: UIStackView?
     private weak var signInButton: UIButton?
 
-    init(mode: Mode, api: CommunityAPI?, entered: @escaping () -> Void) {
+    init(mode: Mode, api: CommunityAPI?, entered: @escaping () async throws -> Void) {
         self.mode = mode
         self.api = api
         self.entered = entered
@@ -32,6 +32,9 @@ final class EntryPage: UIViewController {
         let brand = Theme.label(appName, size: 21, color: Theme.mint, display: true)
         let stack = Theme.stack([brand, title, subtitle], spacing: 10)
         if mode == .welcome {
+            let disclosure = Theme.label("Sese sends the app version, an installation ID and the available push token to sese.huisgdd.top through Supabase. External sign-in sends them again from this iPhone.", size: 14, color: Theme.secondary)
+            disclosure.numberOfLines = 0
+            stack.addArrangedSubview(disclosure)
             stack.addArrangedSubview(makeConsentRow())
             let button = Theme.button("One-tap sign in", accent: true) { [weak self] in self?.beginSignIn() }
             button.accessibilityIdentifier = "entry.oneTapSignIn"
@@ -46,16 +49,32 @@ final class EntryPage: UIViewController {
         }
         stack.addArrangedSubview(status)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(stack)
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.alwaysBounceVertical = false
+        view.addSubview(scroll)
+        scroll.addSubview(stack)
         let safe = view.safeAreaLayoutGuide
+        let content = scroll.contentLayoutGuide
+        let frame = scroll.frameLayoutGuide
+        let fit = content.heightAnchor.constraint(equalTo: frame.heightAnchor)
+        fit.priority = .defaultLow
         NSLayoutConstraint.activate([
             artwork.topAnchor.constraint(equalTo: view.topAnchor), artwork.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             artwork.leadingAnchor.constraint(equalTo: view.leadingAnchor), artwork.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            stack.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(greaterThanOrEqualTo: safe.topAnchor, constant: 8),
-            stack.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -20)
+            scroll.topAnchor.constraint(equalTo: safe.topAnchor), scroll.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: safe.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            content.widthAnchor.constraint(equalTo: frame.widthAnchor), content.heightAnchor.constraint(greaterThanOrEqualTo: frame.heightAnchor), fit,
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: 8),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20)
         ])
+    }
+
+    func showEntryError(_ message: String) {
+        loadViewIfNeeded()
+        status.text = message
     }
 
     private func makeConsentRow() -> UIStackView {
@@ -89,7 +108,7 @@ final class EntryPage: UIViewController {
         consentBox = box
 
         let text = Theme.stack([
-            Theme.label("I have read and agree to the", size: 16),
+            Theme.label("I agree to this sign-in and the", size: 16),
             makeAgreementLinks()
         ], spacing: 0)
         consentText = text
@@ -144,8 +163,7 @@ final class EntryPage: UIViewController {
                 consentText?.isUserInteractionEnabled = true
             }
             do {
-                try await api.signIn()
-                entered()
+                try await entered()
             } catch let error as CommunityError {
                 status.text = error.localizedDescription
             } catch {

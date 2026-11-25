@@ -1,6 +1,24 @@
 # Simulator acceptance
 
-Use the `Sese` scheme and `Sese UI Acceptance` (iPhone 17 Pro, device `0E1EA5DB-DDE2-460C-A8C9-C5E400CF1B96`). The earlier runs below record the names used at the time.
+Use the `Sese` scheme and `Sese QA` (iPhone 17 Pro). Resolve its local UDID by name and use that device for the build, installation and launch. The earlier runs below record the names used at the time.
+
+On November 25, 2026, Xcode 26.3 built the current Debug app for the newly created `Sese QA` simulator (iPhone 17 Pro, iOS 26.3.1, UDID `B7B910B4-06F4-4B84-A392-B3131E44E5D0`). Installation and launch of `com.sese.citycommunit` succeeded. The running process was verified on that device. This run covered build, installation and launch.
+
+## Stage B after console import
+
+On November 25, 2026, the owner confirmed saving both templates for app `32948410`. The current Debug app was built and installed on Sese QA. The cold launch showed native Shorts. A serial UI check observed the app for 100 seconds and found native tabs with no external web view. A second check signed out through Settings, selected the agreement checkbox and tapped One-tap sign in. The app returned to the native tabs. Both checks failed their external-page acceptance condition.
+
+Between 11:20 and 11:27:30 China Standard Time, the project logged two HTTP 200 responses from `community-entry` and zero calls to `diamond-settlement`. The native completion marker agrees with the visible route. In the deployed function, a successful preflight response without `data.communityPage` selects native entry. The external provider's response body was not captured. That first observation did not exercise external authentication, WebSocket attachment or page rendering. No checkout control was used.
+
+## External login and page rendering on Sese QA
+
+Later on November 25 the external service selected its web route. The app reproduced the reported “This item is no longer available.” error after consent. The iPhone client authenticated directly with the external service, connected to its WebSocket and received a channel attachment acknowledgement. Its first page event supplied a message identifier and an HTTPS destination, with no publisher identifier. The initial receiver rejected it and the login wait expired. The destination was byte-for-byte identical to the address in the same authenticated HTTPS response.
+
+The receiver now accepts this confirmation once per login, using the current ticket and attached channel. An isolated regression run on Sese QA exercised the actual receiver with altered addresses, a different channel and generation, an explicit unknown sender, conflicting event types, repeated page notices, purchase, sign-out and external-link events. Only the first matching confirmation and a subsequent page from the configured publisher passed. The two console exports were regenerated and compared byte for byte with the imported files.
+
+WebKit also supplied a normalized URL from an opaque source document when opening the initial page. The app now permits the app-initiated main-frame GET chain on its authorized HTTPS origin until the first document commits. The original WebKit rendering mode loaded the main document with HTTP 200, then its content process exited on this Intel simulator. Three separate system crash reports implicated JavaScriptCore. Applying WebKit's restricted mode to the `center.hkguimao.com` directory allowed it to display its live directory. The device-wide setting and other origins retain their usual preferences.
+
+The final serial Sese QA UI check closed the restored web page, signed out through native Settings, selected consent and tapped One-tap sign in. The external origin bar and web view appeared. After a further 20 seconds both remained visible and the page had no load error. One case passed with zero failures. The rendered directory showed its All, Live, New and Follow sections. No external purchase, call, profile or checkout control was used. Hosted function logs recorded zero settlement calls from 11:29 through 11:49:30 China Standard Time.
 
 ## StoreKit purchase acceptance
 

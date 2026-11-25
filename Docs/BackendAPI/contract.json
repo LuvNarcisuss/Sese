@@ -1,0 +1,358 @@
+{
+  "schemaVersion": 1,
+  "namespace": "sese",
+  "baseURL": "https://sese.huisgdd.top",
+  "sourceAppId": "32948410",
+  "endpoints": {
+    "authenticate": "/community/member/entry",
+    "confirmPurchase": "/community/wallet/confirm-order"
+  },
+  "endpointResponses": {
+    "authenticate": "responses/auth-response.json",
+    "confirmPurchase": "responses/purchase-response.json"
+  },
+  "requestFields": {
+    "appVersion": "cityEdition",
+    "pushToken": "cityPushToken",
+    "deviceNo": "installationID",
+    "transactionId": "storeTransaction",
+    "payload": "storeReceipt",
+    "callbackResult": "districtOrder",
+    "roomPushMsgType": "subscriptionMode"
+  },
+  "h5Fields": {
+    "orderCode": "orderReference",
+    "batchNo": "diamondPack",
+    "openUrl": "destination"
+  },
+  "responseFields": {
+    "code": "code",
+    "message": "message",
+    "data": "data",
+    "token": "districtSession"
+  },
+  "authTemplateH5Field": "communityPage",
+  "events": {
+    "linkSuccessMessage": {
+      "name": "CommunityPageReady",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityPageReady",
+        "pageURL": "#{h5Url}"
+      }
+    },
+    "pay": {
+      "name": "DistrictCheckout",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "DistrictCheckout",
+        "orderReference": "#{orderCode}",
+        "diamondPack": "#{batchNo}"
+      }
+    },
+    "logout": {
+      "name": "CommunitySessionEnded",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunitySessionEnded"
+      }
+    },
+    "openBrowser": {
+      "name": "CommunityLinkRequested",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityLinkRequested",
+        "destination": "#{openUrl}"
+      }
+    }
+  },
+  "eventTransport": {
+    "initialPageConfirmation": {
+      "event": "CommunityPageReady",
+      "authenticationField": "data.communityPage",
+      "eventField": "pageURL",
+      "comparison": "exact UTF-8 bytes of the HTTPS address",
+      "scope": "first page only, current authenticated attempt and attached ticket channel",
+      "sender": "absent only; other commands require the configured publisher"
+    },
+    "jsonEnvelopeEventKinds": [
+      "logout"
+    ]
+  },
+  "themeEvents": [
+    {
+      "key": "inboxChanged",
+      "direction": "inbound",
+      "name": "CommunityInboxChanged",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityInboxChanged",
+        "noticeID": "notice-1",
+        "issuedAt": 1795564800000,
+        "validUntil": 1795651200000
+      },
+      "bindings": {
+        "noticeID": {
+          "path": [
+            "noticeID"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "issuedAt": {
+          "path": [
+            "issuedAt"
+          ],
+          "type": "integer",
+          "required": true
+        },
+        "validUntil": {
+          "path": [
+            "validUntil"
+          ],
+          "type": "integer",
+          "required": true
+        }
+      },
+      "action": "Refresh the authenticated inbox from the Sese database. Deduplicate by account, origin, channel and noticeID. Emit applied only after an authorized database read updates the page model."
+    },
+    {
+      "key": "shortsChanged",
+      "direction": "inbound",
+      "name": "CommunityShortsChanged",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityShortsChanged",
+        "noticeID": "notice-1",
+        "issuedAt": 1795564800000,
+        "validUntil": 1795651200000
+      },
+      "bindings": {
+        "noticeID": {
+          "path": [
+            "noticeID"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "issuedAt": {
+          "path": [
+            "issuedAt"
+          ],
+          "type": "integer",
+          "required": true
+        },
+        "validUntil": {
+          "path": [
+            "validUntil"
+          ],
+          "type": "integer",
+          "required": true
+        }
+      },
+      "action": "Refresh the visible Shorts catalog and engagement from the Sese database. Deduplicate by account, origin, channel and noticeID. Emit applied only after an authorized database read updates the page model."
+    },
+    {
+      "key": "noticeReceipt",
+      "name": "CommunityNoticeReceipt",
+      "direction": "outbound",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityNoticeReceipt",
+        "receiptID": "receipt-1",
+        "noticeID": "notice-1",
+        "noticeEvent": "CommunityInboxChanged",
+        "state": "success",
+        "detail": {
+          "stage": "applied",
+          "sequence": 2
+        }
+      },
+      "bindings": {
+        "receiptID": {
+          "path": [
+            "receiptID"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "noticeID": {
+          "path": [
+            "noticeID"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "noticeEvent": {
+          "path": [
+            "noticeEvent"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "state": {
+          "path": [
+            "state"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "stage": {
+          "path": [
+            "detail",
+            "stage"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "sequence": {
+          "path": [
+            "detail",
+            "sequence"
+          ],
+          "type": "integer",
+          "required": true
+        }
+      },
+      "action": "Publish the stable receipt for the recorded stage until the authenticated server acknowledges that receipt ID."
+    },
+    {
+      "key": "receiptAcknowledged",
+      "name": "CommunityReceiptAcknowledged",
+      "direction": "inbound",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityReceiptAcknowledged",
+        "receiptID": "receipt-1"
+      },
+      "bindings": {
+        "receiptID": {
+          "path": [
+            "receiptID"
+          ],
+          "type": "string",
+          "required": true
+        }
+      },
+      "action": "Remove only the acknowledged receipt from the current account and channel. This acknowledgement generates no reply."
+    },
+    {
+      "key": "noticeSync",
+      "name": "CommunityNoticeSync",
+      "direction": "outbound",
+      "discriminator": [
+        "event"
+      ],
+      "template": {
+        "event": "CommunityNoticeSync",
+        "requestID": "sync-1",
+        "protocolVersion": 1,
+        "reason": "attached",
+        "pendingNoticeIDs": [
+          "notice-1"
+        ],
+        "supportedEvents": [
+          "CommunityInboxChanged",
+          "CommunityShortsChanged"
+        ]
+      },
+      "bindings": {
+        "requestID": {
+          "path": [
+            "requestID"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "protocolVersion": {
+          "path": [
+            "protocolVersion"
+          ],
+          "type": "integer",
+          "required": true
+        },
+        "reason": {
+          "path": [
+            "reason"
+          ],
+          "type": "string",
+          "required": true
+        },
+        "pendingNoticeIDs": {
+          "path": [
+            "pendingNoticeIDs"
+          ],
+          "type": "array",
+          "required": true
+        },
+        "supportedEvents": {
+          "path": [
+            "supportedEvents"
+          ],
+          "type": "array",
+          "required": true
+        }
+      },
+      "action": "Request replay of outstanding notices at attach, foreground and regular intervals. The server preserves original notice identity, content and expiration."
+    }
+  ],
+  "realtime": {
+    "transport": "webSocket",
+    "connectionValuePath": [
+      "data",
+      "districtSession"
+    ],
+    "connectionFields": {
+      "url": "socketAddress",
+      "attach": "districtSubscription",
+      "action": "joinAction",
+      "channel": "districtChannel"
+    },
+    "urlPlaceholder": "#{webSocketUrl}",
+    "channelPlaceholder": "#{roomId}",
+    "clientId": "app",
+    "serverClientIds": [
+      "serve"
+    ],
+    "allowMissingServerClientId": false
+  },
+  "supabase": {
+    "projectURL": "https://ujclifehtfrxtrijlaia.supabase.co",
+    "projectRef": "ujclifehtfrxtrijlaia",
+    "bootstrapFunction": "community-entry",
+    "purchaseFunction": "diamond-settlement",
+    "bootstrapFields": {
+      "backendOrigin": "communityOrigin",
+      "applicationID": "communityApp"
+    },
+    "balanceAuthority": "external",
+    "purchaseFields": {
+      "source": "orderSource",
+      "productID": "catalogPack",
+      "quantity": "packQuantity"
+    },
+    "purchaseSources": {
+      "local": "districtWallet",
+      "socket": "communityOrder"
+    }
+  },
+  "legacyAppIdTransport": {
+    "location": "none"
+  }
+}

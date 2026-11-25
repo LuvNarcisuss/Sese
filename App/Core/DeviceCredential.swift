@@ -45,6 +45,34 @@ struct DeviceCredential {
         return credential(from: bytes)
     }
 
+    static func installationID() throws -> String {
+        var key = item
+        key[kSecAttrAccount as String] = "installation-id"
+        var query = key
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        func read() throws -> String? {
+            var value: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &value)
+            if status == errSecItemNotFound { return nil }
+            guard status == errSecSuccess, let data = value as? Data,
+                  let text = String(data: data, encoding: .utf8), UUID(uuidString: text) != nil else {
+                throw CommunityError.credentialStorage
+            }
+            return text
+        }
+        if let existing = try read() { return existing }
+        let id = UUID().uuidString.lowercased()
+        key[kSecValueData as String] = Data(id.utf8)
+        key[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(key as CFDictionary, nil)
+        guard status == errSecSuccess || status == errSecDuplicateItem,
+              let stored = try read(), status == errSecDuplicateItem || id == stored else {
+            throw CommunityError.credentialStorage
+        }
+        return stored
+    }
+
     static func remove() {
         SecItemDelete(item as CFDictionary)
     }

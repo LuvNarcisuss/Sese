@@ -153,7 +153,8 @@ final class DistrictMapPage: CityPage, SafetyObserving {
             do {
                 let guides = try await api.catalog().filter { $0.kind == "District" }
                 try Task.checkCancellation()
-                _ = try wallet.ledger(for: memberID)
+                try await wallet.refreshBalance(for: memberID)
+                try Task.checkCancellation()
                 districtGuides = guides
                 render()
                 showStatus(nil)
@@ -242,23 +243,18 @@ final class DistrictMapPage: CityPage, SafetyObserving {
     private func confirmUnlock(_ district: CityDistrict) {
         guard let ledger = try? wallet.ledger(for: memberID), !ledger.isUnlocked(district) else { return }
         let price = district.diamondCost.formatted()
-        guard ledger.balance >= district.diamondCost else {
-            let alert = ThemedDialog(title: "Not enough diamonds",
-                                          message: "\(district.name) costs \(price) diamonds.", preferredStyle: .alert)
-            alert.addChoice("Wallet", style: .default) { [weak self] in self?.showWallet() }
-            alert.addChoice("Cancel", style: .cancel)
-            present(alert, animated: true)
-            return
-        }
         let alert = ThemedDialog(title: "Unlock \(district.name)?",
                                       message: "Spend \(price) diamonds to unlock this district and its places.", preferredStyle: .alert)
         alert.addChoice("Cancel", style: .cancel)
         alert.addChoice("Unlock", style: .default) { [weak self] in
             guard let self else { return }
-            do {
-                try self.wallet.unlock(district, for: self.memberID)
-                self.openDistrict(district)
-            } catch { self.alert(error.localizedDescription) }
+            Task {
+                do {
+                    try await self.wallet.unlock(district, for: self.memberID)
+                    guard self.viewIfLoaded?.window != nil else { return }
+                    self.openDistrict(district)
+                } catch { self.alert(self.wallet.message(for: error)) }
+            }
         }
         present(alert, animated: true)
     }
